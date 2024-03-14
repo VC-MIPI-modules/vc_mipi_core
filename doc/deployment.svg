@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentStyleType="text/css" height="451px" preserveAspectRatio="none" style="width:384px;height:451px;background:#FFFFFF;" version="1.1" viewBox="0 0 384 451" width="384px" zoomAndPan="magnify"><defs/><g><!--MD5=[f17e7104d282bd1fce49530de43ca54b]
+cluster vc_mipi_camera.ko--><g id="cluster_vc_mipi_camera.ko"><rect fill="none" height="103" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:1.0;" width="207" x="12" y="7"/><polygon fill="none" points="202,12,202,26,214,26,214,18,208,12,202,12" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="208" x2="208" y1="12" y2="18"/><line style="stroke:#181818;stroke-width:1.0;" x1="214" x2="208" y1="18" y2="18"/><text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="146" x="42.5" y="21.9951">vc_mipi_camera.ko</text></g><!--MD5=[9b8dc4a24460e4a73b48da66637a0382]
+cluster vc_mipi_core.ko--><g id="cluster_vc_mipi_core.ko"><rect fill="none" height="295" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:1.0;" width="360" x="12" y="150"/><polygon fill="none" points="355,155,355,169,367,169,367,161,361,155,355,155" style="stroke:#181818;stroke-width:1.0;"/><line style="stroke:#181818;stroke-width:1.0;" x1="361" x2="361" y1="155" y2="161"/><line style="stroke:#181818;stroke-width:1.0;" x1="367" x2="361" y1="161" y2="161"/><text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="124" x="130" y="164.9951">vc_mipi_core.ko</text></g><!--MD5=[e460fbdcca5cf9154947aaf4d724580b]
+entity vc_mipi_camera.c--><g id="elem_vc_mipi_camera.c"><path d="M55,52.5 L55,83.7969 A2.5,2.5 0 0 0 57.5,86.2969 L192.5,86.2969 A2.5,2.5 0 0 0 195,83.7969 L195,60 L185,50 L57.5,50 A2.5,2.5 0 0 0 55,52.5 " fill="#F1F1F1" style="stroke:#181818;stroke-width:0.5;"/><path d="M185,50 L185,57.5 A2.5,2.5 0 0 0 187.5,60 L195,60 " fill="#F1F1F1" style="stroke:#181818;stroke-width:0.5;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="120" x="65" y="72.9951">vc_mipi_camera.c</text></g><!--MD5=[810241366f23746d6759f4008dae6518]
+entity vc_mipi_core.h--><g id="elem_vc_mipi_core.h"><path d="M104.5,195.5 L104.5,226.7969 A2.5,2.5 0 0 0 107,229.2969 L223,229.2969 A2.5,2.5 0 0 0 225.5,226.7969 L225.5,203 L215.5,193 L107,193 A2.5,2.5 0 0 0 104.5,195.5 " fill="#F1F1F1" style="stroke:#181818;stroke-width:0.5;"/><path d="M215.5,193 L215.5,200.5 A2.5,2.5 0 0 0 218,203 L225.5,203 " fill="#F1F1F1" style="stroke:#181818;stroke-width:0.5;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="101" x="114.5" y="215.9951">vc_mipi_core.h</text></g><!--MD5=[fe44c19f3466dd569d6a68e94df7aef7]
+entity vc_mipi_core.c--><g id="elem_vc_mipi_core.c"><path d="M44,387.5 L44,418.7969 A2.5,2.5 0 0 0 46.5,421.2969 L161.5,421.2969 A2.5,2.5 0 0 0 164,418.7969 L164,395 L154,385 L46.5,385 A2.5,2.5 0 0 0 44,387.5 " fill="#F1F1F1" style="stroke:#181818;stroke-width:0.5;"/><path d="M154,385 L154,392.5 A2.5,2.5 0 0 0 156.5,395 L164,395 " fill="#F1F1F1" style="stroke:#181818;stroke-width:0.5;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="100" x="54" y="407.9951">vc_mipi_core.c</text></g><!--MD5=[031640c0912766d8e4ab10d2582b6c63]
+entity vc_mipi_modules.h--><g id="elem_vc_mipi_modules.h"><path d="M140,291.5 L140,322.7969 A2.5,2.5 0 0 0 142.5,325.2969 L287.5,325.2969 A2.5,2.5 0 0 0 290,322.7969 L290,299 L280,289 L142.5,289 A2.5,2.5 0 0 0 140,291.5 " fill="#F1F1F1" style="stroke:#181818;stroke-width:0.5;"/><path d="M280,289 L280,296.5 A2.5,2.5 0 0 0 282.5,299 L290,299 " fill="#F1F1F1" style="stroke:#181818;stroke-width:0.5;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="130" x="150" y="311.9951">vc_mipi_modules.h</text></g><!--MD5=[72288218de100ab547ca61d3510e5212]
+entity vc_mipi_modules.c--><g id="elem_vc_mipi_modules.c"><path d="M199.5,387.5 L199.5,418.7969 A2.5,2.5 0 0 0 202,421.2969 L346,421.2969 A2.5,2.5 0 0 0 348.5,418.7969 L348.5,395 L338.5,385 L202,385 A2.5,2.5 0 0 0 199.5,387.5 " fill="#F1F1F1" style="stroke:#181818;stroke-width:0.5;"/><path d="M338.5,385 L338.5,392.5 A2.5,2.5 0 0 0 341,395 L348.5,395 " fill="#F1F1F1" style="stroke:#181818;stroke-width:0.5;"/><text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="129" x="209.5" y="407.9951">vc_mipi_modules.c</text></g><!--MD5=[89dbafa64cfafea2a433805c69a1008b]
+reverse link vc_mipi_core.h to vc_mipi_core.c--><g id="link_vc_mipi_core.h_vc_mipi_core.c"><path d="M150.6,233.72 C141.34,248.67 129.81,269.31 123,289 C111.69,321.71 106.97,362.16 105.12,384.72 " fill="none" id="vc_mipi_core.h-backto-vc_mipi_core.c" style="stroke:#181818;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/><polygon fill="#181818" points="153.39,229.27,145.223,234.7746,150.7362,233.5076,152.0032,239.0207,153.39,229.27" style="stroke:#181818;stroke-width:1.0;"/></g><!--MD5=[dc2720b0b7af10c4a052bc6db6f5ac27]
+reverse link vc_mipi_modules.h to vc_mipi_modules.c--><g id="link_vc_mipi_modules.h_vc_mipi_modules.c"><path d="M228.68,329.8 C239.2,346.56 253.54,369.4 263.25,384.87 " fill="none" id="vc_mipi_modules.h-backto-vc_mipi_modules.c" style="stroke:#181818;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/><polygon fill="#181818" points="225.82,325.24,227.2216,334.9886,228.4803,329.4736,233.9953,330.7322,225.82,325.24" style="stroke:#181818;stroke-width:1.0;"/></g><!--MD5=[c67e642927ad1df5ff23ea491e895ff9]
+reverse link vc_mipi_core.h to vc_mipi_modules.h--><g id="link_vc_mipi_core.h_vc_mipi_modules.h"><path d="M176.59,233.8 C185.51,250.56 197.66,273.4 205.89,288.87 " fill="none" id="vc_mipi_core.h-backto-vc_mipi_modules.h" style="stroke:#181818;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/><polygon fill="#181818" points="174.17,229.24,174.8808,239.0632,176.5252,233.6506,181.9378,235.2949,174.17,229.24" style="stroke:#181818;stroke-width:1.0;"/></g><!--MD5=[da78fba660213219080dc68200cba866]
+reverse link vc_mipi_modules.h to vc_mipi_core.c--><g id="link_vc_mipi_modules.h_vc_mipi_core.c"><path d="M191.03,328.3 C171.13,345.15 143.14,368.85 124.33,384.79 " fill="none" id="vc_mipi_modules.h-backto-vc_mipi_core.c" style="stroke:#181818;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/><polygon fill="#181818" points="194.9,325.02,185.4462,327.7815,191.0836,328.2504,190.6148,333.8877,194.9,325.02" style="stroke:#181818;stroke-width:1.0;"/></g><!--MD5=[66917a34f42212b7582cfe35503ad836]
+link vc_mipi_camera.ko to vc_mipi_core.ko--><g id="link_vc_mipi_camera.ko_vc_mipi_core.ko"><path d="M20,110.6787 C20,110.9247 20,111.1712 20,111.4183 C20,112.4065 20,113.4036 20,114.4085 C20,122.4476 20,130.9872 20,139.5263 C20,141.661 20,143.7957 20,145.9226 C20,146.986 20,148.0475 20,149.106 C20,149.3707 20,149.6351 20,149.8994 " fill="none" id="vc_mipi_camera.ko-to-vc_mipi_core.ko" style="stroke:#181818;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/><polygon fill="#181818" points="20,149.8994,24,140.8994,20,144.8994,16,140.8994,20,149.8994" style="stroke:#181818;stroke-width:1.0;"/></g><!--MD5=[f5c6048b4e049596dfb315148ad7138d]
+@startuml
+
+artifact vc_mipi_camera.ko {
+    file vc_mipi_camera.c
+}
+
+artifact vc_mipi_core.ko {
+    file vc_mipi_core.h
+    file vc_mipi_core.c
+    file vc_mipi_modules.h
+    file vc_mipi_modules.c
+
+    vc_mipi_core.h <.. vc_mipi_core.c
+    vc_mipi_modules.h <.. vc_mipi_modules.c
+    vc_mipi_core.h <.. vc_mipi_modules.h
+    vc_mipi_modules.h <.. vc_mipi_core.c
+}
+
+vc_mipi_camera.ko ..> vc_mipi_core.ko
+
+@enduml
+
+PlantUML version 1.2022.7(Mon Aug 22 19:01:30 CEST 2022)
+(GPL source distribution)
+Java Runtime: OpenJDK Runtime Environment
+JVM: OpenJDK 64-Bit Server VM
+Default Encoding: UTF-8
+Language: en
+Country: US
+--></g></svg>

@@ -1,0 +1,21 @@
+@startuml
+
+artifact vc_mipi_camera.ko {
+    file vc_mipi_camera.c
+}
+
+artifact vc_mipi_core.ko {
+    file vc_mipi_core.h
+    file vc_mipi_core.c
+    file vc_mipi_modules.h
+    file vc_mipi_modules.c
+
+    vc_mipi_core.h <.. vc_mipi_core.c
+    vc_mipi_modules.h <.. vc_mipi_modules.c
+    vc_mipi_core.h <.. vc_mipi_modules.h
+    vc_mipi_modules.h <.. vc_mipi_core.c
+}
+
+vc_mipi_camera.ko ..> vc_mipi_core.ko
+
+@enduml

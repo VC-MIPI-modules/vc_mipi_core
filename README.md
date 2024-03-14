@@ -14,3 +14,7 @@
   * IMX415
   * IMX565, IMX566, IMX567, IMX568
   * OV7251, OV9281
+
+## Deployment
+
+<img src="doc/deployment.svg">
