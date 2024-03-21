@@ -100,6 +100,12 @@ typedef struct vc_control {
         __u32 def;
 } vc_control;
 
+typedef struct vc_control64 {
+        __u64 min;
+        __u64 max;
+        __u64 def;
+} vc_control64;
+
 typedef struct vc_frame {
         __u32 left;
         __u32 top;
@@ -160,7 +166,12 @@ struct vc_ctrl {
         struct vc_mode mode[8];
         struct vc_control exposure;
         struct vc_control gain;
+        struct vc_control blacklevel;
+        struct vc_control hblank;
+        struct vc_control vblank;
         struct vc_control framerate;
+        struct vc_control pixelrate;
+        struct vc_control64 linkfreq;
         // Modes & Frame Formats
         struct vc_frame frame;          // Pixel
         // Control and status registers
@@ -182,10 +193,12 @@ struct vc_state {
         __u32 exposure;                 // µs
         __u32 gain;
         __u32 blacklevel;
+        __u32 pixelrate; // depends on bitdepth and num_lanes
+        __u64 linkfreq;  // aka data_rate/2
         __u32 exposure_cnt;
         __u32 retrigger_cnt;
         __u32 framerate;
-        __u32 format_code;
+        __u32 format_code; // MIPI format_code includes bitdepth
         struct vc_frame frame;          // Pixel
         __u8 num_lanes;
         __u8 io_mode;
@@ -204,7 +217,7 @@ struct vc_cam {
 // --- Helper functions to allow i2c communication for customization ----------
 int vc_read_i2c_reg(struct i2c_client *client, const __u16 addr);
 int vc_write_i2c_reg(struct i2c_client *client, const __u16 addr, const __u8 value);
-struct i2c_client *vc_mod_get_client(struct device *dev, struct i2c_adapter *adapter, __u8 i2c_addr); // MS TEST
+struct i2c_client *vc_mod_get_client(struct device *dev, struct i2c_adapter *adapter, __u8 i2c_addr); //  TEST
 
 // --- Helper functions for internal data structures --------------------------
 void vc_core_print_debug(struct vc_cam *cam);
@@ -226,7 +239,7 @@ __u32 vc_core_get_retrigger(struct vc_cam *cam, __u8 num_lanes, __u8 format);
 // --- Function to initialize the vc core --------------------------------------
 int vc_core_init(struct vc_cam *cam, struct i2c_client *client);
 int vc_core_update_controls(struct vc_cam *cam);
-int vc_mod_reset_module(struct vc_cam *cam, __u8 mode); //MS TEST
+int vc_mod_reset_module(struct vc_cam *cam, __u8 mode); // TEST
 
 // --- Functions for the VC MIPI Controller Module ----------------------------
 int vc_mod_set_mode(struct vc_cam *cam, int *reset);

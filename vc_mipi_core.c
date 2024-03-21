@@ -908,6 +908,10 @@ static void vc_core_state_init(struct vc_cam *cam)
         state->frame.height = ctrl->frame.height;
         state->streaming = 0;
         state->flags = 0x00;
+
+        state->pixelrate = ctrl->pixelrate.def; // TODO
+        state->linkfreq = ctrl->linkfreq.def;   // TODO
+
 }
 
 int vc_core_init(struct vc_cam *cam, struct i2c_client *client)
