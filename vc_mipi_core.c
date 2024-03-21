@@ -1778,3 +1778,30 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
 
         return ret;
 }
+EXPORT_SYMBOL( vc_sen_set_exposure );
+
+static int __init  vc_mipi_core_init(void)
+{
+	//printk("called %s()", __FUNCTION__);
+	pr_info("%s (%s) init\n",
+			THIS_MODULE->name,
+			THIS_MODULE->version);
+	return 0;
+}
+
+static void __exit  vc_mipi_core_exit(void)
+{
+	//printk("called %s()", __FUNCTION__);
+	pr_info("%s (%s) exit\n",
+			THIS_MODULE->name,
+			THIS_MODULE->version);
+}
+
+module_init(vc_mipi_core_init);
+module_exit(vc_mipi_core_exit);
+
+MODULE_VERSION("0.17");
+MODULE_DESCRIPTION("Vision Components GmbH - VC MIPI Core driver");
+MODULE_AUTHOR("Michael Steinel, Vision Components GmbH <mipi-tech@vision-components.com>");
+
+MODULE_LICENSE("GPL v2");
