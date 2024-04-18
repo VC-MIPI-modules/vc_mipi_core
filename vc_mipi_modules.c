@@ -665,6 +665,37 @@ static void vc_init_ctrl_imx568(struct vc_ctrl *ctrl, struct vc_desc* desc)
                                           FLAG_TRIGGER_SELF | FLAG_TRIGGER_SINGLE;
 }
 
+static void vc_init_ctrl_imx900(struct vc_ctrl *ctrl, struct vc_desc* desc)
+{
+        INIT_MESSAGE("IMX900")
+
+        ctrl->gain                      = (vc_control) { .min =   0, .max =       480, .def =      0 };
+
+        //ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x35b4, .m = 0x35b5 };
+        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x30d4, .m = 0x30d5, .h = 0x30d6, .u = 0x0000 };
+        ctrl->csr.sen.mode              = (vc_csr2) { .l = 0x3000, .m = 0x3010 };
+        ctrl->csr.sen.mode_standby      = 0x01;
+        ctrl->csr.sen.mode_operating    = 0x00;
+
+        FRAME(0, 0, 2048, 1536)
+        //                       hmax  vmax      vmax   vmax  blkl  blkl  retrigger
+        //                              min       max    def   max   def
+        MODE(0, 2, FORMAT_RAW08,  460,   22, 0xffffff, 1732,   255,   15,  1058562)
+        MODE(1, 2, FORMAT_RAW10,  564,   22, 0xffffff, 1732,  1023,  60,  1273590) // OK
+        MODE(2, 2, FORMAT_RAW12,  667,   22, 0xffffff, 1732,  4095, 240,  1514484)
+        MODE(3, 4, FORMAT_RAW08,  460,   22, 0xffffff, 1732,   255,  15,   553716)
+        MODE(4, 4, FORMAT_RAW10,  564,   22, 0xffffff, 1732,  1023,  60,   673812)
+        MODE(5, 4, FORMAT_RAW12,  667,   22, 0xffffff, 1732,  4095, 240,   793692)
+
+        ctrl->flags                     = FLAG_EXPOSURE_SONY;
+        ctrl->flags                    |= FLAG_PREGIUS_S;
+        ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
+        ctrl->flags                    |= FLAG_IO_ENABLED;
+        ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL | FLAG_TRIGGER_PULSEWIDTH |
+                                          FLAG_TRIGGER_SELF | FLAG_TRIGGER_SINGLE;
+}
+
+
 // ------------------------------------------------------------------------------------------------
 //  Settings for OV7251 (Rev.01)
 //  0.3 MegaPixel OmniPixel3-GS
@@ -765,6 +796,7 @@ int vc_mod_ctrl_init(struct vc_ctrl* ctrl, struct vc_desc* desc)
         case MOD_ID_IMX566: vc_init_ctrl_imx566(ctrl, desc); break;
         case MOD_ID_IMX567: vc_init_ctrl_imx567(ctrl, desc); break;
         case MOD_ID_IMX568: vc_init_ctrl_imx568(ctrl, desc); break;
+        case MOD_ID_IMX900: vc_init_ctrl_imx900(ctrl, desc); break;
         case MOD_ID_OV7251: vc_init_ctrl_ov7251(ctrl, desc); break;
         case MOD_ID_OV9281: vc_init_ctrl_ov9281(ctrl, desc); break;
         default:
