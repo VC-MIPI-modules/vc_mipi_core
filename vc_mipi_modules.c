@@ -665,6 +665,10 @@ static void vc_init_ctrl_imx568(struct vc_ctrl *ctrl, struct vc_desc* desc)
                                           FLAG_TRIGGER_SELF | FLAG_TRIGGER_SINGLE;
 }
 
+// ------------------------------------------------------------------------------------------------
+//  Settings for IMX900 (Rev.02)
+//  3.1 MegaPixel Pregius S
+
 static void vc_init_ctrl_imx900(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         INIT_MESSAGE("IMX900")
@@ -680,12 +684,12 @@ static void vc_init_ctrl_imx900(struct vc_ctrl *ctrl, struct vc_desc* desc)
         FRAME(0, 0, 2048, 1536)
         //                       hmax  vmax      vmax   vmax  blkl  blkl  retrigger
         //                              min       max    def   max   def
-        MODE(0, 2, FORMAT_RAW08,  460,   22, 0xffffff, 1732,   255,   15,  1058562)
-        MODE(1, 2, FORMAT_RAW10,  564,   22, 0xffffff, 1732,  1023,  60,  1273590) // OK
-        MODE(2, 2, FORMAT_RAW12,  667,   22, 0xffffff, 1732,  4095, 240,  1514484)
-        MODE(3, 4, FORMAT_RAW08,  460,   22, 0xffffff, 1732,   255,  15,   553716)
-        MODE(4, 4, FORMAT_RAW10,  564,   22, 0xffffff, 1732,  1023,  60,   673812)
-        MODE(5, 4, FORMAT_RAW12,  667,   22, 0xffffff, 1732,  4095, 240,   793692)
+        MODE(0, 2, FORMAT_RAW08,  460,   99, 0xffffff, 1816,   255,  15,  1058562)
+        MODE(1, 2, FORMAT_RAW10,  564,   99, 0xffffff, 1816,  1023,  60,  1273590)
+        MODE(2, 2, FORMAT_RAW12,  667,   99, 0xffffff, 1816,  4095, 240,  1514484)
+        MODE(3, 4, FORMAT_RAW08,  460,   99, 0xffffff, 1816,   255,  15,   553716)
+        MODE(4, 4, FORMAT_RAW10,  564,   99, 0xffffff, 1816,  1023,  60,   673812)
+        MODE(5, 4, FORMAT_RAW12,  667,   99, 0xffffff, 1816,  4095, 240,   793692)
 
         ctrl->flags                     = FLAG_EXPOSURE_SONY;
         ctrl->flags                    |= FLAG_PREGIUS_S;
