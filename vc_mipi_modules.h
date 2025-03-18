@@ -24,6 +24,7 @@
 #define MOD_ID_IMX566           0x0566
 #define MOD_ID_IMX567           0x0567
 #define MOD_ID_IMX568           0x0568
+#define MOD_ID_IMX900           0x0900
 #define MOD_ID_OV7251           0x7251
 #define MOD_ID_OV9281           0x9281
 
@@ -31,3 +32,7 @@ int vc_mod_is_color_sensor(struct vc_desc *desc);
 int vc_mod_ctrl_init(struct vc_ctrl* ctrl, struct vc_desc* desc);
 
 #endif // _VC_MIPI_MODULES_H
+
+#ifdef MODULE
+MODULE_LICENSE("GPL v2");
+#endif
