@@ -483,9 +483,32 @@ vc_mode vc_core_get_mode_by_param(struct vc_cam *cam, __u8 num_lanes, __u8 forma
 vc_mode vc_core_get_mode(struct vc_cam *cam)
 {
         struct vc_state *state = &cam->state;
+        struct device *dev = vc_core_get_sen_device(cam);
+
         __u8 format = vc_core_mbus_code_to_format(state->format_code);
-        __u8 binning = state->binning_mode;
-        return vc_core_get_mode_by_param(cam, state->num_lanes, format, binning);
+
+        struct vc_ctrl *ctrl = &cam->ctrl;
+        int index = 0;
+        int binning_index = 0;
+        vc_mode tRet;
+
+        memset(&tRet, 0, sizeof(vc_mode));
+
+        binning_index = (ctrl->flags & FLAG_USE_BINNING_INDEX) ? state->binning_mode : 0;
+
+        for (index = 0; index < MAX_VC_MODES; index++) {
+                if ( (state->num_lanes == ctrl->mode[index].num_lanes)
+                  && (   format == ctrl->mode[index].format) 
+                  && (  binning_index == ctrl->mode[index].binning)) {
+                        memcpy(&tRet, &ctrl->mode[index], sizeof(vc_mode));
+                        return ctrl->mode[index];
+                  }
+        }
+
+        vc_err(dev, "%s(): Could not get mode values!\n", __FUNCTION__);
+
+        return tRet;
+        
 }
 EXPORT_SYMBOL(vc_core_get_mode);
 
@@ -799,7 +822,7 @@ __u32 vc_core_get_framerate(struct vc_cam *cam)
                 framerate = ctrl->framerate.max;
         }
 
-        vc_notice(dev, "%s(): Get framerate: %u mHz\n", __FUNCTION__, framerate);
+        vc_info(dev, "%s(): Get framerate: %u mHz\n", __FUNCTION__, framerate);
         return framerate;
 }
 EXPORT_SYMBOL(vc_core_get_framerate);
@@ -1280,10 +1303,11 @@ int vc_mod_set_mode(struct vc_cam *cam, int *reset)
         char fourcc[14];
         char *stype;
         __u8 type = 0;
-        __u8 binning = 0;
+        struct vc_binning *binning = vc_core_get_binning(cam);
         __u8 mode = 0;
         int ret = 0;
         bool reset_binning = false;
+        __u8 binning_mode = 0;
 
         switch (cam->state.trigger_mode) {
         case REG_TRIGGER_DISABLE:
@@ -1317,8 +1341,9 @@ int vc_mod_set_mode(struct vc_cam *cam, int *reset)
         else {
                 reset_binning = false;
         }
+        binning_mode = (binning->use_mod_mode) ? state->binning_mode : 0;                
 
-        mode = vc_mod_find_mode(cam, num_lanes, format, type, binning);
+        mode = vc_mod_find_mode(cam, num_lanes, format, type, binning_mode);
         if ( (mode == state->mode) && (!(ctrl->flags & FLAG_RESET_ALWAYS) && (type == MODE_TYPE_STREAM) && !reset_binning)) {
                 vc_dbg(dev, "%s(): Module mode %u need not to be set!\n", __FUNCTION__, mode);
                 *reset = 0;
@@ -1555,6 +1580,7 @@ struct vc_binning *vc_core_get_binning(struct vc_cam *cam)
 
         return &ctrl->binnings[state->binning_mode];
 }
+EXPORT_SYMBOL(vc_core_get_binning);
 
 void vc_core_calculate_roi(struct vc_cam *cam, __u32 *left, __u32 *right, __u32 *width,
         __u32 *top, __u32 *bottom, __u32 *height, __u32 *o_width, __u32 *o_height)
@@ -1599,19 +1625,47 @@ void vc_core_calculate_roi(struct vc_cam *cam, __u32 *left, __u32 *right, __u32 
         *bottom = *top + *height;
 }
 
+int vc_core_get_mode_index(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
+{
+//        struct device *dev = vc_core_get_sen_device(cam);
+        struct vc_ctrl *ctrl = &cam->ctrl;
+        int index = 0;
+        for (index = 0; index < MAX_VC_MODES; index++) {
+                if ( (num_lanes == ctrl->mode[index].num_lanes)
+                  && (   format == ctrl->mode[index].format) 
+                  && (  binning == ctrl->mode[index].binning) ) {
+                        return index;
+                  }
+        }
+
+        return -1;
+}
+
 int vc_sen_write_binning_mode_regs(struct vc_cam *cam)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
+        struct vc_state *state = &cam->state;
         struct device *dev = &ctrl->client_sen->dev;
         struct i2c_client *client = ctrl->client_sen;
-        struct vc_mode mode = vc_core_get_mode(cam);
-        int index = 0;
+        __u8 format = vc_core_mbus_code_to_format(state->format_code);
+
+        int iTmp = 0;
+        int mode_index = -1;
         int ret = 0;
 
-        struct vc_reg *regs = mode.binning_mode_regs;
-        while (regs[index].address > 0) {
-                ret |= i2c_write_reg(dev, client, regs[index].address, regs[index].value, __FUNCTION__);
-                index++;
+        if (0 < state->binning_mode)
+        {
+                mode_index = vc_core_get_mode_index(cam, state->num_lanes, format, state->binning_mode);
+                if ((0 <= mode_index) && (mode_index < MAX_VC_MODES) && (ctrl->flags & FLAG_USE_BINNING_INDEX))
+                {
+                        while (ctrl->mode[mode_index].binning_mode_regs[iTmp].address > 0)
+                        {
+                                ret |= i2c_write_reg(dev, client, ctrl->mode[mode_index].binning_mode_regs[iTmp].address, ctrl->mode[mode_index].binning_mode_regs[iTmp].value, __FUNCTION__);
+                                iTmp++;
+                        }
+
+                        ret |= i2c_write_reg4(dev, client, &ctrl->csr.sen.hmax, ctrl->mode[mode_index].hmax, __FUNCTION__);
+                }
         }
 
         return ret;
@@ -1627,7 +1681,7 @@ static int vc_sen_write_hmax(struct vc_ctrl *ctrl, __u32 hmax)
         return i2c_write_reg4(dev, client, &ctrl->csr.sen.hmax, hmax, __FUNCTION__);
 }
 
-static int vc_sen_set_hmax(struct vc_cam *cam)
+int vc_sen_set_hmax(struct vc_cam *cam)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
@@ -1640,9 +1694,16 @@ static int vc_sen_set_hmax(struct vc_cam *cam)
         if (cam->state.hmax_overwrite < 0) {
                 return 0;
         }
+        else if (cam->state.hmax_overwrite > 0)
+        {
+                printk("Overwrite HMAX with %d\n", cam->state.hmax_overwrite);
+                return vc_sen_write_hmax(ctrl, cam->state.hmax_overwrite);
+        }
+        
 #endif
         return vc_sen_write_hmax(ctrl, hmax);
 }
+EXPORT_SYMBOL(vc_sen_set_hmax);
 
 int vc_sen_set_roi(struct vc_cam *cam)
 {
@@ -1712,7 +1773,26 @@ int vc_sen_set_roi(struct vc_cam *cam)
 }
 EXPORT_SYMBOL(vc_sen_set_roi);
 
-static int vc_sen_write_vmax(struct vc_ctrl *ctrl, __u32 vmax)
+struct v4l2_rect vc_sen_get_roi(struct vc_cam *cam)
+{
+        int w_left, w_top, w_right, w_bottom, w_width, w_height, o_width, o_height;
+        int ret = 0;
+        
+
+        vc_core_calculate_roi(cam, &w_left, &w_right, &w_width, &w_top, &w_bottom, &w_height, &o_width, &o_height);
+
+        struct v4l2_rect rect = {
+                .left = w_left,
+                .top = w_top,
+                .width = w_width,
+                .height = w_height
+        };
+        return rect;
+
+}
+EXPORT_SYMBOL(vc_sen_get_roi);
+
+int vc_sen_write_vmax(struct vc_ctrl *ctrl, __u32 vmax)
 {
         struct i2c_client *client = ctrl->client_sen;
         struct device *dev = &client->dev;
@@ -1721,6 +1801,7 @@ static int vc_sen_write_vmax(struct vc_ctrl *ctrl, __u32 vmax)
 
         return i2c_write_reg4(dev, client, &ctrl->csr.sen.vmax, vmax, __FUNCTION__);
 }
+EXPORT_SYMBOL(vc_sen_write_vmax);
 
 static int vc_sen_write_shs(struct vc_ctrl *ctrl, __u32 shs)
 {
@@ -1972,7 +2053,6 @@ static __u32 vc_core_calculate_period_1H(struct vc_cam *cam, __u8 num_lanes, __u
         int binning_index = 0;
         __u8 index = 0;
 
-        // TODO: bad code style -> refactoring
         binning_index = (ctrl->flags & FLAG_USE_BINNING_INDEX) ? binning : 0;
 
         for (index = 0; index <= MAX_VC_MODES; index++) {
@@ -2235,7 +2315,7 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
                 case REG_TRIGGER_STREAM_LEVEL:
                         vc_calculate_exposure(cam, exposure_us);
                         ret |= vc_sen_write_shs(ctrl, state->shs);
-                        ret |= vc_sen_write_vmax(ctrl, state->vmax);
+                        ret |= vc_sen_write_vmax(ctrl, state->vmax_overwrite);
                 }
         
         } else if (ctrl->flags & FLAG_EXPOSURE_OMNIVISION) {

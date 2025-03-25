@@ -192,16 +192,19 @@ typedef struct vc_mode {
 } vc_mode;
 
 typedef struct vc_binning {
+        bool use_mod_mode;
         __u8 h_factor;
         __u8 v_factor;
         struct vc_reg regs[8];
 } vc_binning;
 
 #define BINNING_START(binning, h, v) \
-        binning = (vc_binning) { .h_factor = h, .v_factor = v }; \
+        binning = (vc_binning) { .use_mod_mode = false, .h_factor = h, .v_factor = v }; \
         { const struct vc_reg regs [] = {
 #define BINNING_END(binning) \
         , {0, 0} }; memcpy(&binning.regs, regs, sizeof(regs)); }
+#define BINNING(binning, h, v) \
+        binning = (vc_binning) { .use_mod_mode = true, .h_factor = h, .v_factor = v }; 
 
 typedef struct dt_binning_mode {
         __u32 binning_mode;
@@ -285,6 +288,7 @@ int vc_core_set_format(struct vc_cam *cam, __u32 code);
 __u32 vc_core_get_format(struct vc_cam *cam);
 int vc_core_set_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __u32 height);
 struct vc_frame *vc_core_get_frame(struct vc_cam *cam);
+struct vc_binning *vc_core_get_binning(struct vc_cam *cam);
 int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number);
 __u32 vc_core_get_num_lanes(struct vc_cam *cam);
 int vc_core_set_framerate(struct vc_cam *cam, __u32 framerate);
@@ -314,10 +318,13 @@ int vc_mod_set_io_mode(struct vc_cam *cam, int mode);
 
 // --- Functions for the VC MIPI Sensors --------------------------------------
 int vc_sen_set_roi(struct vc_cam *cam);
+struct v4l2_rect vc_sen_get_roi(struct vc_cam *cam);
 int vc_sen_set_exposure(struct vc_cam *cam, int exposure);
 int vc_sen_set_gain(struct vc_cam *cam, __u64 gain, bool unit_is_mdB);
 int vc_sen_set_blacklevel(struct vc_cam *cam, __u32 blacklevel);
 int vc_sen_start_stream(struct vc_cam *cam);
 int vc_sen_stop_stream(struct vc_cam *cam);
+int vc_sen_set_hmax(struct vc_cam *cam);
+int vc_sen_write_vmax(struct vc_ctrl *ctrl, __u32 vmax);
 
 #endif // _VC_MIPI_CORE_H
