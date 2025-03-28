@@ -1696,7 +1696,6 @@ int vc_sen_set_hmax(struct vc_cam *cam)
         }
         else if (cam->state.hmax_overwrite > 0)
         {
-                printk("Overwrite HMAX with %d\n", cam->state.hmax_overwrite);
                 return vc_sen_write_hmax(ctrl, cam->state.hmax_overwrite);
         }
         
@@ -2315,7 +2314,7 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
                 case REG_TRIGGER_STREAM_LEVEL:
                         vc_calculate_exposure(cam, exposure_us);
                         ret |= vc_sen_write_shs(ctrl, state->shs);
-                        ret |= vc_sen_write_vmax(ctrl, state->vmax_overwrite);
+                        ret |= vc_sen_write_vmax(ctrl, state->vmax);
                 }
         
         } else if (ctrl->flags & FLAG_EXPOSURE_OMNIVISION) {
