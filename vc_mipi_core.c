@@ -1775,7 +1775,6 @@ EXPORT_SYMBOL(vc_sen_set_roi);
 struct v4l2_rect vc_sen_get_roi(struct vc_cam *cam)
 {
         int w_left, w_top, w_right, w_bottom, w_width, w_height, o_width, o_height;
-        int ret = 0;
         
 
         vc_core_calculate_roi(cam, &w_left, &w_right, &w_width, &w_top, &w_bottom, &w_height, &o_width, &o_height);
@@ -2227,14 +2226,14 @@ static void vc_calculate_trig_exposure(struct vc_cam *cam, __u32 exposure_us)
         struct device *dev = &ctrl->client_sen->dev;
         __u8 num_lanes = state->num_lanes;
         __u8 format = vc_core_mbus_code_to_format(state->format_code);
-        __u8 binning = state->binning_mode;
-        __u32 min_frametime_us = 0;
-        __u32 frametime_us = 0;
-        __u32 retrigger_min = vc_core_get_retrigger(cam, num_lanes, format, binning);
 
-        // NOTE: Currently it is not possible to use an optimized minimal frame time.
-        // min_frametime_us = 1000000000 / vc_core_calculate_max_frame_rate(cam, num_lanes, format) + 1000;
-        min_frametime_us = ((__u64)retrigger_min * 1000000) / ctrl->clk_ext_trigger;
+        __u8 binning = state->binning_mode;
+        __u32 hmax = vc_core_get_hmax(cam, num_lanes, format, binning);
+
+        __u32 min_frametime_us = 0;
+        __u32 frametime_us = 0; //Calculated frametime for self trigger by framerate
+        __u32 vmax_optimized = vc_core_get_optimized_vmax(cam, num_lanes, format, binning, state->frame.height);
+        min_frametime_us = ((__u64)(vmax_optimized * hmax ) * 1000000 )/ ctrl->clk_pixel ;
         frametime_us = min_frametime_us;
 
         if (state->trigger_mode & REG_TRIGGER_SELF) {
@@ -2260,13 +2259,11 @@ static void vc_calculate_trig_exposure(struct vc_cam *cam, __u32 exposure_us)
                 }
         }
 
-        vc_dbg(dev, "%s(): min_frametime: %u us, frametime: %u us, exposure: %u us\n", __FUNCTION__,
-                min_frametime_us, frametime_us, exposure_us);
-        state->retrigger_cnt = ((__u64)frametime_us * ctrl->clk_ext_trigger) / 1000000;
-        // NOTE: Check this for different cameras.
-        // if (state->retrigger_cnt < 3240) {
-        // 	state->retrigger_cnt = 3240;
-        // }
+        vc_dbg(dev, "%s(): min_frametime: %u us, frametime: %u us, exposure: %u us, vmax: %u, hmax: %u\n", __FUNCTION__,
+                min_frametime_us, frametime_us, exposure_us, vmax_optimized , hmax);
+        state->retrigger_cnt = (__u64)(frametime_us* ctrl->clk_ext_trigger)/ 1000000 ;
+
+
         state->exposure_cnt = ((__u64)exposure_us * ctrl->clk_ext_trigger) / 1000000;
 }
 
