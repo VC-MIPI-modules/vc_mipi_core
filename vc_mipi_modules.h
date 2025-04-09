@@ -2,6 +2,7 @@
 #define _VC_MIPI_MODULES_H
 
 #include "vc_mipi_core.h"
+extern int debug;
 
 #define MOD_ID_IMX178           0x0178
 #define MOD_ID_IMX183           0x0183

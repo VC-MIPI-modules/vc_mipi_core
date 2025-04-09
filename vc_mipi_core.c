@@ -12,6 +12,7 @@
 #include <linux/module.h>
 #endif
 
+int debug = 3;
 // #define READ_DEFAULT_REG_VALUES
 
 #define MOD_REG_RESET            0x0100 // register  0 [0x0100]: reset and init register (R/W)
@@ -235,6 +236,12 @@ int vc_write_i2c_reg4(struct i2c_client *client, struct vc_csr4 *csr, const __u3
         return i2c_write_reg4(&client->dev, client, csr, value, __FUNCTION__);
 }
 EXPORT_SYMBOL(vc_write_i2c_reg4);
+
+int vc_write_i2c_reg2(struct i2c_client *client, struct vc_csr2 *csr, const __u32 value)
+{
+        return i2c_write_reg2(&client->dev, client, csr, value, __FUNCTION__);
+}
+EXPORT_SYMBOL(vc_write_i2c_reg2);
 // ------------------------------------------------------------------------------------------------
 //  Helper Functions for debugging
 

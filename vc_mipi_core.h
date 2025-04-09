@@ -7,8 +7,8 @@
 #include <linux/i2c.h>
 #include <linux/videodev2.h>
 
-// extern int debug;
-int debug = 3; // FS Workaround
+extern int debug;
+
 #define level(level) if (debug >= level)
 #define vc_reg(dev, fmt, ...) level(6) dev_info(dev, fmt, ##__VA_ARGS__)
 #define vc_dbg(dev, fmt, ...) level(5) dev_info(dev, fmt, ##__VA_ARGS__)
@@ -277,6 +277,7 @@ struct vc_cam {
 // --- Helper functions to allow i2c communication for customization ----------
 int vc_read_i2c_reg(struct i2c_client *client, const __u16 addr);
 int vc_write_i2c_reg(struct i2c_client *client, const __u16 addr, const __u8 value);
+int vc_write_i2c_reg2(struct i2c_client *client, struct vc_csr2 *csr, const __u32 value);
 int vc_write_i2c_reg4(struct i2c_client *client, struct vc_csr4 *csr, const __u32 value);
 
 struct i2c_client *vc_mod_get_client(struct device *dev, struct i2c_adapter *adapter, __u8 i2c_addr);

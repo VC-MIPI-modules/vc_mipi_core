@@ -1,6 +1,6 @@
 #include "vc_mipi_modules.h"
 #include <linux/v4l2-mediabus.h>
-
+int debug = 3;
 
 #define INIT_MESSAGE(camera) \
         struct device *dev = &ctrl->client_mod->dev; \
