@@ -78,6 +78,27 @@ void vc_core_calculate_roi(struct vc_cam *cam, __u32 *w_left, __u32 *w_right, __
 static int vc_sen_read_image_size(struct vc_ctrl *ctrl, struct vc_frame *size);
 struct vc_binning *vc_core_get_binning(struct vc_cam *cam);
 int vc_set_tout_sony(struct vc_cam *cam, __u32 exposure_us);
+int i2c_write_regs(struct i2c_client *client, const struct vc_reg *regs, const char* func);
+vc_mode vc_core_get_mode_by_param(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
+__u32 vc_core_get_hmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
+vc_control vc_core_get_vmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
+vc_control vc_core_get_blacklevel(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
+int vc_mod_set_power(struct vc_cam *cam, int on);
+int vc_mod_reset_module(struct vc_cam *cam, __u8 mode);
+int vc_mod_is_trigger_enabled(struct vc_cam *cam);
+int vc_mod_get_io_mode(struct vc_cam *cam);
+int vc_core_get_mode_index(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
+int vc_sen_write_binning_mode_regs(struct vc_cam *cam);
+int vc_sen_write_mode(struct vc_ctrl *ctrl, int mode);
+int vc_sen_set_hmax(struct vc_cam *cam);
+int vc_sen_set_roi(struct vc_cam *cam);
+int vc_sen_write_vmax(struct vc_ctrl *ctrl, __u32 vmax);
+int vc_sen_set_blacklevel(struct vc_cam *cam, __u32 blacklevel_rel);
+int vc_sen_set_gain(struct vc_cam *cam, __u64 gain, bool unit_is_mdB);
+int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us);
+int vc_sen_start_stream(struct vc_cam *cam);
+int vc_sen_stop_stream(struct vc_cam *cam);
+int vc_set_tout_sony(struct vc_cam *cam, __u32 exposure_us);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -363,7 +384,7 @@ struct device *vc_core_get_mod_device(struct vc_cam *cam)
         return &cam->ctrl.client_mod->dev;
 }
 
-static int vc_core_fmt_to_str(__u32 code, char *buf)
+static int  vc_core_fmt_to_str(__u32 code, char *buf)
 {
         switch(code) {
                         case MEDIA_BUS_FMT_Y8_1X8:       sprintf(buf, "Y8_1X8       "); break;
@@ -384,7 +405,7 @@ static int vc_core_fmt_to_str(__u32 code, char *buf)
 
 }
 
-static int vc_core_get_fourcc_fmt(__u32 code, char *buf, bool packed)
+static int __maybe_unused vc_core_get_fourcc_fmt(__u32 code, char *buf, bool packed)
 {
         if(packed)
         {
@@ -2024,9 +2045,9 @@ int vc_sen_start_stream(struct vc_cam *cam)
                 ret |= vc_mod_write_io_mode(client_mod, state->io_mode);
                 ret |= vc_mod_write_trigger_mode(client_mod, state->trigger_mode);
         }
-        if((!state->streaming) && ctrl->flags & FLAG_EXPOSURE_SONY) {
-                vc_set_tout_sony(cam, state->exposure);
-        }
+        // if((!state->streaming) && ctrl->flags & FLAG_EXPOSURE_SONY) {
+        //         vc_set_tout_sony(cam, state->exposure);
+        // }
         state->streaming = 1;
 
         return ret;
