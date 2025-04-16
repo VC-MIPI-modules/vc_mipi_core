@@ -1367,14 +1367,15 @@ int vc_mod_set_mode(struct vc_cam *cam, int *reset)
                 stype = "EXT.TRG";
                 break;
         }
+        binning_mode = (binning->use_mod_mode) ? state->binning_mode : 0;                
 
         if (( 0 < state->former_binning_mode ) && ( 0 == state->binning_mode) ) {
                 reset_binning = true;
-        }
+                        }
         else {
                 reset_binning = false;
         }
-        binning_mode = (binning->use_mod_mode) ? state->binning_mode : 0;                
+        state->former_binning_mode = state->binning_mode;
 
         mode = vc_mod_find_mode(cam, num_lanes, format, type, binning_mode);
         if ( (mode == state->mode) && (!(ctrl->flags & FLAG_RESET_ALWAYS) && (type == MODE_TYPE_STREAM) && !reset_binning)) {
@@ -1393,7 +1394,6 @@ int vc_mod_set_mode(struct vc_cam *cam, int *reset)
                         mode, num_lanes, fourcc, stype, ret);
                 return ret;
         }
-
         state->mode = mode;
         *reset = 1;
 
