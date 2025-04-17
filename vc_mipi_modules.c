@@ -147,7 +147,7 @@ static void vc_init_ctrl_imx290_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
 static void vc_init_ctrl_imx296_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         AGAIN_LIN(480, 48000)
-        
+        ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x3014, .m = 0x3015, .h = 0x0000, .u = 0x0000 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x3010, .m = 0x3011, .h = 0x3012, .u = 0x0000 };
         ctrl->csr.sen.mode              = (vc_csr2) { .l = 0x3000, .m = 0x300A };
         ctrl->csr.sen.mode_standby      = 0x01;
