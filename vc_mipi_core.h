@@ -1,6 +1,8 @@
 #ifndef _VC_MIPI_CORE_H
 #define _VC_MIPI_CORE_H
 
+#define VERSION "0.6.0"
+
 #define ENABLE_ADVANCED_CONTROL
 
 #include <linux/types.h>
@@ -248,7 +250,7 @@ struct vc_state {
         __u32 exposure;                 // µs
         __u32 gain;                     // mdB
         __u32 blacklevel;
-        __u32 exposure_cnt;
+        __u32 exposure_cnt;             // Exposure in clock cycles
         __u32 retrigger_cnt;
         __u32 framerate;
         __u32 format_code;
@@ -329,5 +331,7 @@ int vc_sen_start_stream(struct vc_cam *cam);
 int vc_sen_stop_stream(struct vc_cam *cam);
 int vc_sen_set_hmax(struct vc_cam *cam);
 int vc_sen_write_vmax(struct vc_ctrl *ctrl, __u32 vmax);
+
+
 
 #endif // _VC_MIPI_CORE_H

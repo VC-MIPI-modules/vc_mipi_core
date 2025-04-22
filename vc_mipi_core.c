@@ -2454,8 +2454,7 @@ module_param(debug, int, 0644);
 MODULE_PARM_DESC(debug, "Debug level (0-6)");
 
 MODULE_LICENSE("GPL v2");
-MODULE_AUTHOR("Florian Schmid");
 MODULE_DESCRIPTION("VC MIPI Core Module");
-MODULE_VERSION("1.0");
+MODULE_VERSION(VERSION);
 MODULE_INFO(name, "vc_mipi_core");
 #endif

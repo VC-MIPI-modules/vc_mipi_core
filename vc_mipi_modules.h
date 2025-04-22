@@ -1,7 +1,7 @@
 #ifndef _VC_MIPI_MODULES_H
 #define _VC_MIPI_MODULES_H
 
-#define VC_MIPI_MODULES_VERSION "1.0.0"
+#define VERSION "0.6.0"
 
 #include "vc_mipi_core.h"
 extern int debug;
@@ -38,7 +38,7 @@ int vc_mod_ctrl_init(struct vc_ctrl* ctrl, struct vc_desc* desc);
 
 #ifdef MODULE
 MODULE_LICENSE("GPL v2");
-MODULE_VERSION(VC_MIPI_MODULES_VERSION);
+MODULE_VERSION(VERSION);
 
 
 #endif
