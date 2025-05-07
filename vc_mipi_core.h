@@ -331,6 +331,7 @@ int vc_sen_start_stream(struct vc_cam *cam);
 int vc_sen_stop_stream(struct vc_cam *cam);
 int vc_sen_set_hmax(struct vc_cam *cam);
 int vc_sen_write_vmax(struct vc_ctrl *ctrl, __u32 vmax);
+int vc_mod_reset_module(struct vc_cam *cam, __u8 mode);
 
 
 

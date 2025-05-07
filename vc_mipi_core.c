@@ -84,7 +84,6 @@ __u32 vc_core_get_hmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 bin
 vc_control vc_core_get_vmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
 vc_control vc_core_get_blacklevel(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
 int vc_mod_set_power(struct vc_cam *cam, int on);
-int vc_mod_reset_module(struct vc_cam *cam, __u8 mode);
 int vc_mod_is_trigger_enabled(struct vc_cam *cam);
 int vc_mod_get_io_mode(struct vc_cam *cam);
 int vc_core_get_mode_index(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
@@ -387,18 +386,18 @@ struct device *vc_core_get_mod_device(struct vc_cam *cam)
 static int  vc_core_fmt_to_str(__u32 code, char *buf)
 {
         switch(code) {
-                        case MEDIA_BUS_FMT_Y8_1X8:       sprintf(buf, "Y8_1X8       "); break;
-                        case MEDIA_BUS_FMT_Y10_1X10:     sprintf(buf, "Y10_1X10     "); break;
-                        case MEDIA_BUS_FMT_Y12_1X12:     sprintf(buf, "Y12_1X12     "); break;
-                        case MEDIA_BUS_FMT_Y14_1X14:     sprintf(buf, "Y14_1X14     "); break;
-                        case MEDIA_BUS_FMT_SRGGB8_1X8:   sprintf(buf, "SRGGB8_1X8   "); break;
-                        case MEDIA_BUS_FMT_SRGGB10_1X10: sprintf(buf, "SRGGB10_1X10 "); break;
-                        case MEDIA_BUS_FMT_SRGGB12_1X12: sprintf(buf, "SRGGB12_1X12 "); break;
-                        case MEDIA_BUS_FMT_SRGGB14_1X14: sprintf(buf, "SRGGB14_1X14 "); break;
-                        case MEDIA_BUS_FMT_SGBRG8_1X8:   sprintf(buf, "SGBRG8_1X8   "); break;
-                        case MEDIA_BUS_FMT_SGBRG10_1X10: sprintf(buf, "SGBRG10_1X10 "); break;
-                        case MEDIA_BUS_FMT_SGBRG12_1X12: sprintf(buf, "SGBRG12_1X12 "); break;
-                        case MEDIA_BUS_FMT_SGBRG14_1X14: sprintf(buf, "SGBRG14_1X14 "); break;
+                        case MEDIA_BUS_FMT_Y8_1X8:       sprintf(buf, "Y8_1X8"); break;
+                        case MEDIA_BUS_FMT_Y10_1X10:     sprintf(buf, "Y10_1X10"); break;
+                        case MEDIA_BUS_FMT_Y12_1X12:     sprintf(buf, "Y12_1X12"); break;
+                        case MEDIA_BUS_FMT_Y14_1X14:     sprintf(buf, "Y14_1X14"); break;
+                        case MEDIA_BUS_FMT_SRGGB8_1X8:   sprintf(buf, "SRGGB8_1X8"); break;
+                        case MEDIA_BUS_FMT_SRGGB10_1X10: sprintf(buf, "SRGGB10_1X10"); break;
+                        case MEDIA_BUS_FMT_SRGGB12_1X12: sprintf(buf, "SRGGB12_1X12"); break;
+                        case MEDIA_BUS_FMT_SRGGB14_1X14: sprintf(buf, "SRGGB14_1X14"); break;
+                        case MEDIA_BUS_FMT_SGBRG8_1X8:   sprintf(buf, "SGBRG8_1X8"); break;
+                        case MEDIA_BUS_FMT_SGBRG10_1X10: sprintf(buf, "SGBRG10_1X10"); break;
+                        case MEDIA_BUS_FMT_SGBRG12_1X12: sprintf(buf, "SGBRG12_1X12"); break;
+                        case MEDIA_BUS_FMT_SGBRG14_1X14: sprintf(buf, "SGBRG14_1X14"); break;
                         default: return -EINVAL;
                 }
         return 0;
@@ -695,7 +694,7 @@ __u32 vc_core_get_format(struct vc_cam *cam)
         char fourcc[14];
 
         vc_core_fmt_to_str(code, fourcc);
-        vc_notice(dev, "%s(): Get format: 0x%04x (%s)\n", __FUNCTION__, code, fourcc);
+        vc_info(dev, "%s(): Get format: 0x%04x (%s)\n", __FUNCTION__, code, fourcc);
 
         return code;
 }
@@ -763,7 +762,7 @@ struct vc_frame *vc_core_get_frame(struct vc_cam *cam)
         struct vc_frame* frame = &cam->state.frame;
         struct device *dev = vc_core_get_sen_device(cam);
 
-        vc_notice(dev, "%s(): Get frame (width: %u, height: %u)\n", __FUNCTION__, frame->width, frame->height);
+        vc_info(dev, "%s(): Get frame size (width: %u, height: %u)\n", __FUNCTION__, frame->width, frame->height);
 
         return frame;
 }
@@ -1324,6 +1323,16 @@ static __u32 vc_sen_read_vmax(struct vc_ctrl *ctrl)
 
         return vmax;
 }
+static __u32 vc_sen_read_shs(struct vc_ctrl *ctrl)
+{
+        struct i2c_client *client = ctrl->client_sen;
+        struct device *dev = &client->dev;
+        __u32 vmax = i2c_read_reg4(dev, client, &ctrl->csr.sen.shs, __FUNCTION__);
+
+        vc_notice(dev, "%s(): Read sensor SHS: 0x%08x (%u)\n", __FUNCTION__, vmax, vmax);
+
+        return vmax;
+}
 #endif
 
 int vc_mod_set_mode(struct vc_cam *cam, int *reset)
@@ -1400,6 +1409,7 @@ int vc_mod_set_mode(struct vc_cam *cam, int *reset)
 #ifdef READ_DEFAULT_REG_VALUES
         vc_sen_read_hmax(&cam->ctrl);
         vc_sen_read_vmax(&cam->ctrl);
+        vc_sen_read_shs(&cam->ctrl);
 #endif
 
         return ret;
@@ -2141,6 +2151,7 @@ static void vc_core_calculate_vmax(struct vc_cam *cam, __u32 period_1H_ns)
         __u64 frametime_1H;
 
         state->vmax = vc_core_get_optimized_vmax(cam, num_lanes, format, binning, height);
+        vc_dbg(dev, "%s(): Optimized VMAX: %u\n", __FUNCTION__, state->vmax);
         // Lower the frame rate if the frame rate setting requires it.
         if (state->framerate > 0) {
                 frametime_ns = 1000000000000 / state->framerate;
@@ -2389,7 +2400,7 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
         struct i2c_client *client_mod = ctrl->client_mod;
         int ret = 0;
 
-        vc_notice(dev, "%s(): Set sensor exposure: %u us (gain: %u mdB)\n", __FUNCTION__, 
+        vc_dbg(dev, "%s(): Set sensor exposure: %u us (gain: %u mdB)\n", __FUNCTION__, 
                 exposure_us, cam->state.gain);
 
         if (exposure_us < ctrl->exposure.min)
@@ -2425,7 +2436,19 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
                 case REG_TRIGGER_STREAM_LEVEL:
                         vc_calculate_exposure(cam, exposure_us);
                         ret |= vc_sen_write_shs(ctrl, state->shs);
-                        ret |= vc_sen_write_vmax(ctrl, state->vmax);
+
+                        if(state->vmax_overwrite > 0) 
+                        {
+                                ret |= vc_sen_write_vmax(ctrl, state->vmax_overwrite);
+
+
+                        }
+                        else
+                        {
+                                ret |= vc_sen_write_vmax(ctrl, state->vmax);
+
+
+                        }
                 }
         
         } else if (ctrl->flags & FLAG_EXPOSURE_OMNIVISION) {
