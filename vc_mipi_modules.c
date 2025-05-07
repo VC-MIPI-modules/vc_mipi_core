@@ -101,8 +101,8 @@ static void vc_init_ctrl(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
 static void vc_init_ctrl_imx183_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
-        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x7004, .m = 0x7005, .h = 0x7006, .u = 0x0000 };
         ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x7002, .m = 0x7003, .h = 0x0000, .u = 0x0000 };
+        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x7004, .m = 0x7005, .h = 0x7006, .u = 0x0000 };
 
         ctrl->flags                     = FLAG_EXPOSURE_SONY;
         ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
@@ -114,9 +114,8 @@ static void vc_init_ctrl_imx183_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
 static void vc_init_ctrl_imx252_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         AGAIN_LIN(480, 48000)
-
-        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x0210, .m = 0x0211, .h = 0x0212, .u = 0x0000 };
         ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x0214, .m = 0x0215, .h = 0x0000, .u = 0x0000 };
+        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x0210, .m = 0x0211, .h = 0x0212, .u = 0x0000 };
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x0454, .m = 0x0455 };
 
         ctrl->flags                     = FLAG_EXPOSURE_SONY;
@@ -129,7 +128,7 @@ static void vc_init_ctrl_imx252_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
 static void vc_init_ctrl_imx290_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         AGAIN_LIN(240, 72000)
-        
+        ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x301C, .m = 0x301D, .h = 0x0000, .u = 0x0000 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x3018, .m = 0x3019, .h = 0x301A, .u = 0x0000 };
         ctrl->csr.sen.mode_standby      = 0x01;
         ctrl->csr.sen.mode_operating    = 0x00;
@@ -455,6 +454,7 @@ static void vc_init_ctrl_imx335(struct vc_ctrl *ctrl, struct vc_desc* desc)
         AGAIN_LIN(240, 72000)
 
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x3302, .m = 0x3303 };
+        ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x3034, .m = 0x3035, .h = 0x0000, .u = 0x0000 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x3030, .m = 0x3031, .h = 0x3032, .u = 0x0000 };
         ctrl->csr.sen.mode_standby      = 0x01;
         ctrl->csr.sen.mode_operating    = 0x00;
@@ -521,6 +521,7 @@ static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         ctrl->csr.sen.dgain             = (vc_csr2) { .l = 0x020f, .m = 0x020e };
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x3033, .m = 0x3032 };
+        ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x0343, .m = 0x0342, .h = 0x0000, .u = 0x0000 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x0341, .m = 0x0340, .h = 0x0000, .u = 0x0000 };
         ctrl->csr.sen.shs               = (vc_csr4) { .l = 0x0203, .m = 0x0202, .h = 0x0000, .u = 0x0000 };
 
@@ -603,6 +604,7 @@ static void vc_init_ctrl_imx415(struct vc_ctrl *ctrl, struct vc_desc* desc)
         AGAIN_LIN(240, 72000)
 
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x30e2, .m = 0x30e3 };
+        ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x3028, .m = 0x3029, .h = 0x0000, .u = 0x0000 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x3024, .m = 0x3025, .h = 0x3026, .u = 0x0000 };
         ctrl->csr.sen.mode_standby      = 0x01;
         ctrl->csr.sen.mode_operating    = 0x00;
@@ -611,7 +613,7 @@ static void vc_init_ctrl_imx415(struct vc_ctrl *ctrl, struct vc_desc* desc)
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
         //                      mode           min       max    def   max   def
         MODE( 0, 2, FORMAT_RAW10, 0,    1042,    8,  0xfffff, 0x8ca, 1023,   50,         0)
-        MODE( 1, 4, FORMAT_RAW10, 0,     551,    8,  0xfffff, 0x8ca, 1023,   50,         0)
+        MODE( 1, 4, FORMAT_RAW10, 0,     521,    8,  0xfffff, 0x8ca, 1023,   50,         0)
 
         ctrl->clk_pixel                 = 74250000;
 
