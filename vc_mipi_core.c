@@ -77,11 +77,12 @@ void vc_core_calculate_roi(struct vc_cam *cam, __u32 *w_left, __u32 *w_right, __
         __u32 *w_top, __u32 *w_bottom, __u32 *w_height, __u32 *o_width, __u32 *o_height);
 static int vc_sen_read_image_size(struct vc_ctrl *ctrl, struct vc_frame *size);
 struct vc_binning *vc_core_get_binning(struct vc_cam *cam);
-int vc_set_tout_sony(struct vc_cam *cam, __u32 exposure_us);
 int i2c_write_regs(struct i2c_client *client, const struct vc_reg *regs, const char* func);
 vc_mode vc_core_get_mode_by_param(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
 __u32 vc_core_get_hmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
 vc_control vc_core_get_vmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
+static void vc_core_calculate_vmax(struct vc_cam *cam, __u32 period_1H_ns);
+
 vc_control vc_core_get_blacklevel(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
 int vc_mod_set_power(struct vc_cam *cam, int on);
 int vc_mod_is_trigger_enabled(struct vc_cam *cam);
@@ -2055,9 +2056,7 @@ int vc_sen_start_stream(struct vc_cam *cam)
                 ret |= vc_mod_write_io_mode(client_mod, state->io_mode);
                 ret |= vc_mod_write_trigger_mode(client_mod, state->trigger_mode);
         }
-        // if((!state->streaming) && ctrl->flags & FLAG_EXPOSURE_SONY) {
-        //         vc_set_tout_sony(cam, state->exposure);
-        // }
+        
         state->streaming = 1;
 
         return ret;
@@ -2108,7 +2107,23 @@ static __u32 vc_core_calculate_period_1H(struct vc_cam *cam, __u8 num_lanes, __u
 
         return 0;
 }
+static __u64 vc_core_calculate_exposure_1H(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning, __u32 exposure_us)
+{
+        __u32 period_1H_ns = 0;
+        __u64 exposure_ns;
+        __u64 exposure_1H;
+        
+       
+        period_1H_ns = vc_core_calculate_period_1H(cam, num_lanes, format, binning);
+        vc_core_calculate_vmax(cam, period_1H_ns);
 
+        // Convert exposure time from µs to ns.
+        exposure_ns = (__u64)(exposure_us)*1000;
+        // Calculate number of lines equivalent to the exposure time without shs_min.
+        exposure_1H = exposure_ns / period_1H_ns;    
+
+        return exposure_1H;
+}
 __u32 vc_core_get_time_per_line_ns(struct vc_cam *cam)
 {
         struct vc_state *state = &cam->state;
@@ -2167,81 +2182,48 @@ static void vc_core_calculate_vmax(struct vc_cam *cam, __u32 period_1H_ns)
 
 int vc_set_tout_sony(struct vc_cam *cam, __u32 exposure_us)
 {
-        struct vc_ctrl *ctrl = &cam->ctrl;
-        struct vc_state *state = &cam->state;
-        struct device *dev = vc_core_get_sen_device(cam);
-
-        __u64 exposure_ns;
+        __u8 num_lanes = cam->state.num_lanes;
+        __u8 format = vc_core_mbus_code_to_format(cam->state.format_code);
+        __u8 binning = cam->state.binning_mode;
         __u64 exposure_1H;
-        __u32 period_1H_ns = 0;
-
-        __u8 num_lanes = state->num_lanes;
-        __u8 format = vc_core_mbus_code_to_format(state->format_code);
-        __u8 binning = state->binning_mode;
-
+        struct device *dev = vc_core_get_sen_device(cam);
+        struct vc_tout *tout = &cam->ctrl.tout;
         int ret = 0;
 
-        period_1H_ns = vc_core_calculate_period_1H(cam, num_lanes, format, binning);
 
-        // Convert exposure time from µs to ns.
-        exposure_ns = (__u64)(exposure_us)*1000;
         // Calculate number of lines equivalent to the exposure time without shs_min.
-        exposure_1H = exposure_ns / period_1H_ns;
+        exposure_1H = vc_core_calculate_exposure_1H(cam, num_lanes, format, binning, exposure_us);
 
+        tout->pulse1_dn = exposure_1H;
+        tout->pulse2_dn = exposure_1H;
 
-        vc_csr4 tout1_up = (vc_csr4) { .l = 0x0270, .m = 0x0271, .h = 0x0272, .u = 0x0000 };
-        vc_csr4 tout1_dn = (vc_csr4) { .l = 0x0274, .m = 0x0275, .h = 0x0276, .u = 0x0000 };
+        if(tout->pulse1_reg.address )
+        {
+                vc_dbg(dev, "Tout not supported for this sensor\n");
+                return -EINVAL;
+        }
+        vc_notice(dev, "%s(): Set Tout1(2) pulse duration: %llu\n", __FUNCTION__, exposure_1H);
+        ret |= i2c_write_reg(dev, cam->ctrl.client_sen, tout->toutsel_reg.address, tout->toutsel_reg.value, __FUNCTION__); //Tout1 output | Tout2 output
+        ret |= i2c_write_reg(dev, cam->ctrl.client_sen, tout->trigtoutsel_reg.address, tout->trigtoutsel_reg.value, __FUNCTION__); //Tout1 output | Tout2 output
 
-        vc_csr4 tout2_up = (vc_csr4) { .l = 0x027c, .m = 0x027d, .h = 0x027e, .u = 0x0000 };
-        vc_csr4 tout2_dn = (vc_csr4) { .l = 0x0280, .m = 0x0281, .h = 0x0282, .u = 0x0000 };
+        ret |= i2c_write_reg(dev, cam->ctrl.client_sen, tout->pulse1_reg.address, tout->pulse1_reg.value, __FUNCTION__); //Tout1 output | Tout2 output
+        ret |= i2c_write_reg(dev, cam->ctrl.client_sen, tout->pulse2_reg.address, tout->pulse2_reg.value, __FUNCTION__); //Tout1 output | Tout2 output
 
-        ret = i2c_write_reg(dev, cam->ctrl.client_sen, 0x026d, 0x0b, __FUNCTION__); //Pulse1 enable normal | pulse enable external | 4th fixed to 1
-        ret = i2c_write_reg(dev, cam->ctrl.client_sen, 0x0279, 0x0b, __FUNCTION__); //Pulse2 enable normal | pulse enable external | 4th fixed to 1
-        if(ret < 0)
+        ret |= i2c_write_reg4(dev, cam->ctrl.client_sen, &tout->pulse1_up_reg, tout->pulse1_up, __FUNCTION__); //Tout1 output | Tout2 output
+        ret |= i2c_write_reg4(dev, cam->ctrl.client_sen, &tout->pulse1_dn_reg, tout->pulse1_dn, __FUNCTION__); //Tout1 output | Tout2 output
+
+        ret |= i2c_write_reg4(dev, cam->ctrl.client_sen, &tout->pulse2_up_reg, tout->pulse2_up, __FUNCTION__); //Tout1 output | Tout2 output
+        ret |= i2c_write_reg4(dev, cam->ctrl.client_sen, &tout->pulse2_dn_reg, tout->pulse2_dn, __FUNCTION__); //Tout1 output | Tout2 output
+        if(ret != 0)
         {
                 vc_err(dev, "Failed to Pulse1(2) enable normal  output\n");
                 return ret;
 
-        }
+        }       
 
-
-        ret  = i2c_write_reg4(dev, ctrl->client_sen, &tout1_up, 0x00, __FUNCTION__);
-        ret |= i2c_write_reg4(dev, ctrl->client_sen, &tout1_dn,  exposure_1H, __FUNCTION__);
-        if(ret < 0)
-        {
-                vc_err(dev, "Failed to tout1_up/dn\n");
-                return ret;
-        }
-        ret  = i2c_write_reg4(dev, ctrl->client_sen, &tout2_up, 0x00, __FUNCTION__);
-        ret |= i2c_write_reg4(dev, ctrl->client_sen, &tout2_dn, exposure_1H, __FUNCTION__);
-        if(ret < 0)
-        {
-                vc_err(dev, "Failed to tout2_up/dn\n");
-                return ret;
-
-        }
-
-        ret = i2c_write_reg(dev, cam->ctrl.client_sen, 0x0226, 0x0f, __FUNCTION__); //Tout1 output | Tout2 output
-        if(ret < 0)
-        {
-                vc_err(dev, "Failed to tout1(2) output\n");
-                return ret;
-
-        }
-        ret = i2c_write_reg(dev, cam->ctrl.client_sen, 0x0229, 0x21, __FUNCTION__); //Tout1_sel output | Tout2_sel output
-        if(ret < 0)
-        {
-                vc_err(dev, "Failed to Tout1_sel(2) output\n");
-                return ret;
-
-        }
-
-
-        vc_notice(&cam->ctrl.client_sen->dev, "Tout set to %llu, period for 1H %u nsec (dev: %u)\n",exposure_1H, period_1H_ns, cam->ctrl.client_sen->addr);
         return ret;
 
 }
-EXPORT_SYMBOL(vc_set_tout_sony);
 
 static void vc_calculate_exposure_sony(struct vc_cam *cam, __u64 exposure_1H)
 {
@@ -2318,20 +2300,14 @@ static void vc_calculate_exposure(struct vc_cam *cam, __u32 exposure_us)
         __u8 num_lanes = state->num_lanes;
         __u8 format = vc_core_mbus_code_to_format(state->format_code);
         __u8 binning = state->binning_mode;
-        __u32 period_1H_ns = 0;
-        __u64 exposure_ns;
         __u64 exposure_1H;
         
         __u32 vmax_def = vc_core_get_vmax(cam, num_lanes, format, binning).def;
         __u32 vmax_min = vc_core_get_vmax(cam, num_lanes, format, binning).min;
 
-        period_1H_ns = vc_core_calculate_period_1H(cam, num_lanes, format, binning);
-        vc_core_calculate_vmax(cam, period_1H_ns);
 
-        // Convert exposure time from µs to ns.
-        exposure_ns = (__u64)(exposure_us)*1000;
         // Calculate number of lines equivalent to the exposure time without shs_min.
-        exposure_1H = exposure_ns / period_1H_ns;
+        exposure_1H = vc_core_calculate_exposure_1H(cam, num_lanes, format, binning, exposure_us);
 
         if (ctrl->flags & FLAG_EXPOSURE_SONY) {
                 vc_calculate_exposure_sony(cam, exposure_1H);
@@ -2340,8 +2316,8 @@ static void vc_calculate_exposure(struct vc_cam *cam, __u32 exposure_us)
                 vc_calculate_exposure_normal(cam, exposure_1H);
         }
 
-        vc_dbg(dev, "%s(): flags: 0x%04x, period_1H_ns: %u, shs: %u/%u, vmax: %u/%u\n", __FUNCTION__,
-                ctrl->flags, period_1H_ns, state->shs, vmax_min, state->vmax, vmax_def);
+        vc_dbg(dev, "%s(): flags: 0x%04x, , shs: %u/%u, vmax: %u/%u\n", __FUNCTION__,
+                ctrl->flags, state->shs, vmax_min, state->vmax, vmax_def);
 }
 
 static void vc_calculate_trig_exposure(struct vc_cam *cam, __u32 exposure_us)
@@ -2441,14 +2417,13 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
                         {
                                 ret |= vc_sen_write_vmax(ctrl, state->vmax_overwrite);
 
-
                         }
                         else
                         {
                                 ret |= vc_sen_write_vmax(ctrl, state->vmax);
 
-
                         }
+                        vc_set_tout_sony(cam, exposure_us);
                 }
         
         } else if (ctrl->flags & FLAG_EXPOSURE_OMNIVISION) {

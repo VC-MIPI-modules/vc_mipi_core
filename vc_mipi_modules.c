@@ -123,6 +123,17 @@ static void vc_init_ctrl_imx252_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->flags                    |= FLAG_IO_ENABLED;
         ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL | FLAG_TRIGGER_PULSEWIDTH |
                                           FLAG_TRIGGER_SELF | FLAG_TRIGGER_SINGLE;
+
+        TOUT(ctrl->tout,
+             0x2026,                                                          /* toutsel_reg */
+             0x2029,                                                          /* trigtoutsel_reg */
+             0x206d,                                                          /* pulse1_reg */
+             ((vc_csr4){.l = 0x2070, .m = 0x2071, .h = 0x2072, .u = 0x0000}), /* pulse1_up_reg */
+             ((vc_csr4){.l = 0x2074, .m = 0x2075, .h = 0x2076, .u = 0x0000}), /* pulse1_dn_reg */
+             0x2079,                                                          /* pulse2_reg */
+             ((vc_csr4){.l = 0x207c, .m = 0x207d, .h = 0x207e, .u = 0x0000}), /* pulse2_up_reg */
+             ((vc_csr4){.l = 0x2080, .m = 0x2081, .h = 0x2082, .u = 0x0000})  /* pulse2_dn_reg */
+        );
 }
 
 static void vc_init_ctrl_imx290_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
@@ -152,6 +163,17 @@ static void vc_init_ctrl_imx296_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->csr.sen.mode_standby      = 0x01;
         ctrl->csr.sen.mode_operating	= 0x00;
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x3254, .m = 0x3255 };
+
+        TOUT(ctrl->tout,
+                0x2026,                                                          /* toutsel_reg */
+                0x2029,                                                          /* trigtoutsel_reg */
+                0x206d,                                                          /* pulse1_reg */
+                ((vc_csr4){.l = 0x2070, .m = 0x2071, .h = 0x2072, .u = 0x0000}), /* pulse1_up_reg */
+                ((vc_csr4){.l = 0x2074, .m = 0x2075, .h = 0x2076, .u = 0x0000}), /* pulse1_dn_reg */
+                0x2079,                                                          /* pulse2_reg */
+                ((vc_csr4){.l = 0x207c, .m = 0x207d, .h = 0x207e, .u = 0x0000}), /* pulse2_up_reg */
+                ((vc_csr4){.l = 0x2080, .m = 0x2081, .h = 0x2082, .u = 0x0000})  /* pulse2_dn_reg */
+           );
 
         ctrl->flags                     = FLAG_EXPOSURE_SONY;
         ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
@@ -349,7 +371,18 @@ static void vc_init_ctrl_imx273(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         BINNING(ctrl->binnings[0], 0, 0)
         BINNING(ctrl->binnings[1], 2, 2)
-        
+
+        TOUT(ctrl->tout, \
+                0x2026,  /* toutsel_reg */ \
+                0x2029,  /* trigtoutsel_reg */ \
+                0x206d,  /* pulse1_reg */ \
+                ((vc_csr4){.l=0x2070, .m=0x2071, .h = 0x2072, .u = 0x0000 }),  /* pulse1_up_reg */ \
+                ((vc_csr4){.l=0x2074, .m=0x2075, .h = 0x2076, .u = 0x0000 }),  /* pulse1_dn_reg */ \
+                0x2079,  /* pulse2_reg */ \
+                ((vc_csr4){.l=0x207c, .m=0x207d, .h = 0x207e, .u = 0x0000 }),  /* pulse2_up_reg */ \
+                ((vc_csr4){.l=0x2080, .m=0x2081, .h = 0x2082, .u = 0x0000 })   /* pulse2_dn_reg */ \
+           );        
+
         ctrl->max_binning_modes_used = 1;
         ctrl->flags                    |= FLAG_USE_BINNING_INDEX;
 }
@@ -391,8 +424,21 @@ static void vc_init_ctrl_imx296(struct vc_ctrl *ctrl, struct vc_desc* desc)
          // to correct exposure time and frame rate, the values are optimized.
         MODE( 1, 1, FORMAT_RAW10, 1,   0x44c,    5,  0xfffff, 0x22f, 1023,   60,    883008)
 
+        TOUT(ctrl->tout, \
+                0x2026,  /* toutsel_reg */ \
+                0x2029,  /* trigtoutsel_reg */ \
+                0x206d,  /* pulse1_reg */ \
+                ((vc_csr4){.l=0x2070, .m=0x2071, .h = 0x2072, .u = 0x0000 }),  /* pulse1_up_reg */ \
+                ((vc_csr4){.l=0x2074, .m=0x2075, .h = 0x2076, .u = 0x0000 }),  /* pulse1_dn_reg */ \
+                0x2079,  /* pulse2_reg */ \
+                ((vc_csr4){.l=0x207c, .m=0x207d, .h = 0x207e, .u = 0x0000 }),  /* pulse2_up_reg */ \
+                ((vc_csr4){.l=0x2080, .m=0x2081, .h = 0x2082, .u = 0x0000 })   /* pulse2_dn_reg */ \
+           );  
+
         BINNING(ctrl->binnings[0], 0, 0)
         BINNING(ctrl->binnings[1], 2, 2)
+
+        
         
         ctrl->max_binning_modes_used = 1;
         ctrl->flags                    |= FLAG_USE_BINNING_INDEX;

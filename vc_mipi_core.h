@@ -200,6 +200,7 @@ typedef struct vc_binning {
         struct vc_reg regs[8];
 } vc_binning;
 
+
 #define BINNING_START(binning, h, v) \
         binning = (vc_binning) { .use_mod_mode = false, .h_factor = h, .v_factor = v }; \
         { const struct vc_reg regs [] = {
@@ -213,6 +214,61 @@ typedef struct dt_binning_mode {
         bool  mode_set;
 } dt_binning_mode;
 
+typedef struct vc_tout {
+        bool tout1_sel;
+        bool tout2_sel;
+
+        bool trig_tout1_sel;
+        bool trig_tout2_sel;
+
+        bool pulse1_en_nor;
+        bool pulse1_en_trig;
+        bool pulse1_pol;
+
+        __u32 pulse1_up;
+        __u32 pulse1_dn;
+
+        bool pulse2_en_nor;
+        bool pulse2_en_trig;
+        bool pulse2_pol;
+        __u32 pulse2_up;
+        __u32 pulse2_dn;
+
+        vc_reg toutsel_reg;
+        vc_reg trigtoutsel_reg;
+        vc_reg pulse1_reg;
+        vc_csr4 pulse1_up_reg;
+        vc_csr4 pulse1_dn_reg;
+        vc_reg pulse2_reg;
+        vc_csr4 pulse2_up_reg;
+        vc_csr4 pulse2_dn_reg;
+} vc_tout;
+
+#define TOUT(tout, _toutsel_reg, _trigtoutsel_reg, _pulse1_reg, _pulse1_up_reg, _pulse1_dn_reg, _pulse2_reg, _pulse2_up_reg, _pulse2_dn_reg) \
+    tout = (vc_tout){                                                      \
+        .tout1_sel         = true,                                          \
+        .tout2_sel         = true,                                          \
+        .trig_tout1_sel    = true,                                          \
+        .trig_tout2_sel    = true,                                          \
+        .pulse1_en_nor     = true,                                          \
+        .pulse2_en_nor     = true,                                          \
+        .pulse1_en_trig    = true,                                          \
+        .pulse2_en_trig    = true,                                          \
+        .pulse1_pol        = true,                                          \
+        .pulse2_pol        = true,                                          \
+        .pulse1_up         = 0,                                             \
+        .pulse1_dn         = 0,                                             \
+        .pulse2_up         = 0,                                             \
+        .pulse2_dn         = 0,                                             \
+        .toutsel_reg       = (vc_reg){.address =_toutsel_reg, .value = 0b1111 },                                   \
+        .trigtoutsel_reg   = (vc_reg){.address =_trigtoutsel_reg, .value = 0b0101},                               \
+        .pulse1_reg        = (vc_reg){.address =_pulse1_reg, .value = 0b1011},                                    \
+        .pulse1_up_reg     = _pulse1_up_reg,                                 \
+        .pulse1_dn_reg     = _pulse1_dn_reg,                                 \
+        .pulse2_reg        = (vc_reg){.address =_pulse2_reg, .value = 0b1011},                                    \
+        .pulse2_up_reg     = _pulse2_up_reg,                                 \
+        .pulse2_dn_reg     = _pulse2_dn_reg                                  \
+    };
 struct vc_ctrl {
         // Communication
         int mod_i2c_addr;
@@ -227,6 +283,8 @@ struct vc_ctrl {
         // Modes & Frame Formats
         struct vc_frame frame;          // Pixel
         struct vc_binning binnings[8];
+        struct vc_tout tout;
+
         __u8 max_binning_modes_used;
         
         // Control and status registers
