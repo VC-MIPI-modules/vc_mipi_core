@@ -1,7 +1,7 @@
 #ifndef _VC_MIPI_CORE_H
 #define _VC_MIPI_CORE_H
 
-#define VERSION "0.6.1"
+#define VERSION "0.6.2"
 
 #define ENABLE_ADVANCED_CONTROL
 

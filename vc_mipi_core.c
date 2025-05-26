@@ -2027,11 +2027,7 @@ int vc_sen_start_stream(struct vc_cam *cam)
 
         ret  = vc_mod_set_mode(cam, &reset);
         ret |= vc_sen_set_roi(cam);
-        if (!ret && reset) {
-                ret |= vc_sen_set_exposure(cam, cam->state.exposure);
-                ret |= vc_sen_set_gain(cam, cam->state.gain, true);
-                ret |= vc_sen_set_blacklevel(cam, cam->state.blacklevel);
-        }
+
 
         vc_notice(dev, "%s(): Start streaming\n", __FUNCTION__);
         vc_dbg(dev, "%s(): MM: 0x%02x, TM: 0x%02x, IO: 0x%02x\n",
@@ -2048,6 +2044,7 @@ int vc_sen_start_stream(struct vc_cam *cam)
                         vc_err(dev, "%s(): Unable to start streaming (error: %d)\n", __FUNCTION__, ret);
         }
 
+
         if (ctrl->flags & FLAG_TRIGGER_SLAVE && state->trigger_mode == REG_TRIGGER_SYNC) {
                 ret |= vc_mod_write_io_mode(client_mod, REG_IO_XTRIG_ENABLE);
                 ret |= vc_mod_write_trigger_mode(client_mod, REG_TRIGGER_DISABLE);
@@ -2056,6 +2053,12 @@ int vc_sen_start_stream(struct vc_cam *cam)
                 ret |= vc_mod_write_io_mode(client_mod, state->io_mode);
                 ret |= vc_mod_write_trigger_mode(client_mod, state->trigger_mode);
         }
+        if (!ret && reset) {
+                ret |= vc_sen_set_gain(cam, cam->state.gain, true);
+                ret |= vc_sen_set_blacklevel(cam, cam->state.blacklevel);
+        }
+        ret |= vc_sen_set_exposure(cam, cam->state.exposure);
+
         
         state->streaming = 1;
 
@@ -2185,7 +2188,7 @@ int vc_set_tout_sony(struct vc_cam *cam, __u32 exposure_us)
         __u8 num_lanes = cam->state.num_lanes;
         __u8 format = vc_core_mbus_code_to_format(cam->state.format_code);
         __u8 binning = cam->state.binning_mode;
-        __u64 exposure_1H;
+        __u64 exposure_1H, period_1H_ns;
         struct device *dev = vc_core_get_sen_device(cam);
         struct vc_tout *tout = &cam->ctrl.tout;
         int ret = 0;
@@ -2194,8 +2197,23 @@ int vc_set_tout_sony(struct vc_cam *cam, __u32 exposure_us)
         // Calculate number of lines equivalent to the exposure time without shs_min.
         exposure_1H = vc_core_calculate_exposure_1H(cam, num_lanes, format, binning, exposure_us);
 
-        tout->pulse1_dn = exposure_1H;
-        tout->pulse2_dn = exposure_1H;
+        period_1H_ns = vc_core_calculate_period_1H(cam, num_lanes, format, binning);
+
+        tout->pulse1_up = cam->state.vmax - cam->state.shs;
+        tout->pulse2_up = tout->pulse1_up;
+
+        tout->pulse1_dn = tout->pulse1_up  + exposure_1H;
+        tout->pulse2_dn = tout->pulse2_up  + exposure_1H;
+
+        vc_dbg(dev, "%s(): Set Tout1(2) pulse duration: %llu\n", __FUNCTION__, exposure_1H);
+        vc_dbg(dev, "%s(): Tout1(2) pulse up: %u, down: %u\n", __FUNCTION__,
+                tout->pulse1_up, tout->pulse1_dn);
+        vc_dbg(dev, "%s(): VMax: %u, shs: %u\n", __FUNCTION__,
+                cam->state.vmax, cam->state.shs);
+        vc_dbg(dev, "%s(): Period 1H: %llu ns, Exposure 1H: %llu\n", __FUNCTION__,
+                period_1H_ns, exposure_1H);
+       
+
 
         if(tout->pulse1_reg.address )
         {
