@@ -2199,15 +2199,17 @@ int vc_set_tout_sony(struct vc_cam *cam, __u32 exposure_us)
 
         period_1H_ns = vc_core_calculate_period_1H(cam, num_lanes, format, binning);
 
-        tout->pulse1_up = cam->state.vmax - cam->state.shs;
-        tout->pulse2_up = tout->pulse1_up;
+        tout->pulse1_up = cam->state.shs;
+        tout->pulse2_up = cam->state.shs;
 
         tout->pulse1_dn = tout->pulse1_up  + exposure_1H;
         tout->pulse2_dn = tout->pulse2_up  + exposure_1H;
 
         vc_dbg(dev, "%s(): Set Tout1(2) pulse duration: %llu\n", __FUNCTION__, exposure_1H);
-        vc_dbg(dev, "%s(): Tout1(2) pulse up: %u, down: %u\n", __FUNCTION__,
+        vc_dbg(dev, "%s(): Tout1 pulse up: %u, down: %u\n", __FUNCTION__,
                 tout->pulse1_up, tout->pulse1_dn);
+        vc_dbg(dev, "%s(): Tout2 pulse up: %u, down: %u\n", __FUNCTION__,
+                        tout->pulse2_up, tout->pulse2_dn);
         vc_dbg(dev, "%s(): VMax: %u, shs: %u\n", __FUNCTION__,
                 cam->state.vmax, cam->state.shs);
         vc_dbg(dev, "%s(): Period 1H: %llu ns, Exposure 1H: %llu\n", __FUNCTION__,
@@ -2215,17 +2217,17 @@ int vc_set_tout_sony(struct vc_cam *cam, __u32 exposure_us)
        
 
 
-        if(tout->pulse1_reg.address )
+        if(!tout->pulse1_reg.address )
         {
-                vc_dbg(dev, "Tout not supported for this sensor\n");
+                vc_dbg(dev, "Tout not supported for this sensors %u\n", tout->pulse1_reg.address);
                 return -EINVAL;
         }
         vc_notice(dev, "%s(): Set Tout1(2) pulse duration: %llu\n", __FUNCTION__, exposure_1H);
-        ret |= i2c_write_reg(dev, cam->ctrl.client_sen, tout->toutsel_reg.address, tout->toutsel_reg.value, __FUNCTION__); //Tout1 output | Tout2 output
-        ret |= i2c_write_reg(dev, cam->ctrl.client_sen, tout->trigtoutsel_reg.address, tout->trigtoutsel_reg.value, __FUNCTION__); //Tout1 output | Tout2 output
+        // ret |= i2c_write_reg(dev, cam->ctrl.client_sen, tout->toutsel_reg.address, tout->toutsel_reg.value, __FUNCTION__); //Tout1 output | Tout2 output
+        // ret |= i2c_write_reg(dev, cam->ctrl.client_sen, tout->trigtoutsel_reg.address, tout->trigtoutsel_reg.value, __FUNCTION__); //Tout1 output | Tout2 output
 
-        ret |= i2c_write_reg(dev, cam->ctrl.client_sen, tout->pulse1_reg.address, tout->pulse1_reg.value, __FUNCTION__); //Tout1 output | Tout2 output
-        ret |= i2c_write_reg(dev, cam->ctrl.client_sen, tout->pulse2_reg.address, tout->pulse2_reg.value, __FUNCTION__); //Tout1 output | Tout2 output
+        // ret |= i2c_write_reg(dev, cam->ctrl.client_sen, tout->pulse1_reg.address, tout->pulse1_reg.value, __FUNCTION__); //Tout1 output | Tout2 output
+        // ret |= i2c_write_reg(dev, cam->ctrl.client_sen, tout->pulse2_reg.address, tout->pulse2_reg.value, __FUNCTION__); //Tout1 output | Tout2 output
 
         ret |= i2c_write_reg4(dev, cam->ctrl.client_sen, &tout->pulse1_up_reg, tout->pulse1_up, __FUNCTION__); //Tout1 output | Tout2 output
         ret |= i2c_write_reg4(dev, cam->ctrl.client_sen, &tout->pulse1_dn_reg, tout->pulse1_dn, __FUNCTION__); //Tout1 output | Tout2 output
