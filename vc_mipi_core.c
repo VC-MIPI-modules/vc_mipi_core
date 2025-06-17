@@ -134,7 +134,7 @@ static int i2c_write_reg(struct device *dev, struct i2c_client *client, const __
         return ret == 1 ? 0 : -EIO;
 }
 
-int i2c_write_regs(struct i2c_client *client, const struct vc_reg *regs, const char* func)
+static int i2c_write_regs(struct i2c_client *client, const struct vc_reg *regs, const char* func)
 {
         int i;
 
@@ -406,7 +406,7 @@ static __u32 vc_core_format_to_mbus_code(__u8 format, int is_color, int is_gbrg)
         return 0;
 }
 
-vc_mode vc_core_get_mode_by_param(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
+static vc_mode vc_core_get_mode_by_param(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
 {
         struct device *dev = vc_core_get_sen_device(cam);
         struct vc_ctrl *ctrl = &cam->ctrl;
@@ -441,7 +441,7 @@ vc_mode vc_core_get_mode(struct vc_cam *cam)
 }
 EXPORT_SYMBOL(vc_core_get_mode);
 
-__u32 vc_core_get_hmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
+static __u32 vc_core_get_hmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
 {
 #ifdef ENABLE_ADVANCED_CONTROL
         if (cam->state.hmax_overwrite > 0) {
@@ -451,17 +451,17 @@ __u32 vc_core_get_hmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 bin
         return vc_core_get_mode_by_param(cam, num_lanes, format, binning).hmax;
 }
 
-vc_control vc_core_get_vmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
+static vc_control vc_core_get_vmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
 {
         return vc_core_get_mode_by_param(cam, num_lanes, format, binning).vmax;
 }
 
-vc_control vc_core_get_blacklevel(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
+static vc_control vc_core_get_blacklevel(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
 {
         return vc_core_get_mode_by_param(cam, num_lanes, format, binning).blacklevel;
 }
 
-__u32 vc_core_get_retrigger(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
+static __u32 vc_core_get_retrigger(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
 {
         return vc_core_get_mode_by_param(cam, num_lanes, format, binning).retrigger_min;
 }
@@ -800,7 +800,7 @@ __u32 vc_core_calculate_max_exposure(struct vc_cam *cam, __u8 num_lanes, __u8 fo
         }
 }
 
-__u32 vc_core_get_optimized_vmax(struct vc_cam *cam, __u8 num_lanes,  __u8 format, __u8 binning_mode, __u32 height)
+static __u32 vc_core_get_optimized_vmax(struct vc_cam *cam, __u8 num_lanes,  __u8 format, __u8 binning_mode, __u32 height)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct device *dev = &ctrl->client_sen->dev;
@@ -892,7 +892,7 @@ struct i2c_client *vc_mod_get_client(struct device *dev, struct i2c_adapter *ada
 }
 EXPORT_SYMBOL(vc_mod_get_client);
 
-int vc_mod_set_power(struct vc_cam *cam, int on)
+static int vc_mod_set_power(struct vc_cam *cam, int on)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct i2c_client *client_mod = ctrl->client_mod;
@@ -1193,7 +1193,7 @@ static int vc_mod_write_mode(struct i2c_client *client, __u8 mode)
         return ret;
 }
 
-int vc_mod_reset_module(struct vc_cam *cam, __u8 mode)
+static int vc_mod_reset_module(struct vc_cam *cam, __u8 mode)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct i2c_client *client = ctrl->client_mod;
@@ -1209,7 +1209,6 @@ int vc_mod_reset_module(struct vc_cam *cam, __u8 mode)
 
         return ret;
 }
-EXPORT_SYMBOL(vc_mod_reset_module);
 
 #ifdef READ_DEFAULT_REG_VALUES
 static __u32 vc_sen_read_hmax(struct vc_ctrl *ctrl)
@@ -1313,7 +1312,7 @@ int vc_mod_set_mode(struct vc_cam *cam, int *reset)
 }
 EXPORT_SYMBOL(vc_mod_set_mode);
 
-int vc_mod_is_trigger_enabled(struct vc_cam *cam)
+static int vc_mod_is_trigger_enabled(struct vc_cam *cam)
 {
         return cam->state.trigger_mode != REG_TRIGGER_DISABLE;
 }
@@ -1448,19 +1447,11 @@ int vc_mod_set_io_mode(struct vc_cam *cam, int mode)
 }
 EXPORT_SYMBOL(vc_mod_set_io_mode);
 
-int vc_mod_get_io_mode(struct vc_cam *cam)
-{
-        switch (cam->state.io_mode)  {
-        case REG_IO_DISABLE: 		return 0;
-        case REG_IO_FLASH_ENABLE: 	return 1;
-        }
-        return 0;
-}
 
 // ------------------------------------------------------------------------------------------------
 //  Helper Functions for the VC MIPI Sensors
 
-int vc_sen_write_mode(struct vc_ctrl *ctrl, int mode)
+static int vc_sen_write_mode(struct vc_ctrl *ctrl, int mode)
 {
         struct i2c_client *client = ctrl->client_sen;
         struct device *dev = &client->dev;
@@ -1566,7 +1557,7 @@ void vc_core_calculate_roi(struct vc_cam *cam, __u32 *left, __u32 *right, __u32 
         *bottom = *top + *height;
 }
 
-int vc_sen_write_binning_mode_regs(struct vc_cam *cam)
+static int vc_sen_write_binning_mode_regs(struct vc_cam *cam)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct device *dev = &ctrl->client_sen->dev;
