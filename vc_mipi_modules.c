@@ -981,9 +981,10 @@ static void vc_init_ctrl_imx585(struct vc_ctrl *ctrl, struct vc_desc* desc)
         AGAIN_LIN(0xf0, 1280000)
         
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x30dc, .m = 0x30dd };
-        // ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x302c, .m = 0x302d, .h = 0x0000, .u = 0x0000 };
+        ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x302c, .m = 0x302d, .h = 0x0000, .u = 0x0000 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x3028, .m = 0x3029, .h = 0x302a, .u = 0x0000 };
-
+        ctrl->csr.sen.mode_standby      = 0x01;
+        ctrl->csr.sen.mode_operating    = 0x00;
         ctrl->flags                     = FLAG_EXPOSURE_SONY;
         ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
         ctrl->flags                    |= FLAG_IO_ENABLED;
@@ -993,8 +994,8 @@ static void vc_init_ctrl_imx585(struct vc_ctrl *ctrl, struct vc_desc* desc)
         FRAME(0, 0, 3840, 2160)
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
         //                      mode           min       max    def   max   def
-        MODE( 0, 2, FORMAT_RAW10, 0,    1440,    8,  0x1ffff,  0x08ca,  0x3ff,   0x32,   3599997)
-        MODE( 1, 4, FORMAT_RAW10, 0,    1440,    8,  0x1ffff,  0x08ca,  0x3ff,   0x32,   3599997)
+        MODE( 0, 2, FORMAT_RAW10, 0,    1100,    8,  0x1ffff,  0x08ca,  0x3ff,   0x32,   0)
+        MODE( 1, 4, FORMAT_RAW10, 0,    1100,    8,  0x1ffff,  0x08ca,  0x3ff,   0x32,   0)
        
 }
 
