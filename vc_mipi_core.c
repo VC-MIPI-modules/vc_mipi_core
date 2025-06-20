@@ -14,6 +14,7 @@
 
 int debug = 3;
 // #define READ_DEFAULT_REG_VALUES
+// #define OVERWRITE_HMAX
 
 #define MOD_REG_RESET            0x0100 // register  0 [0x0100]: reset and init register (R/W)
 #define MOD_REG_STATUS           0x0101 // register  1 [0x0101]: status (R)
@@ -1744,7 +1745,11 @@ int vc_sen_set_hmax(struct vc_cam *cam)
         }
         
 #endif
+#ifdef OVERWRITE_HMAX
         return vc_sen_write_hmax(ctrl, hmax);
+#else
+        return 0;
+#endif
 }
 EXPORT_SYMBOL(vc_sen_set_hmax);
 
@@ -2222,7 +2227,7 @@ int vc_set_tout_sony(struct vc_cam *cam, __u32 exposure_us)
                 vc_dbg(dev, "Tout not supported for this sensors %u\n", tout->pulse1_reg.address);
                 return -EINVAL;
         }
-        vc_notice(dev, "%s(): Set Tout1(2) pulse duration: %llu\n", __FUNCTION__, exposure_1H);
+        vc_dbg(dev, "%s(): Set Tout1(2) pulse duration: %llu\n", __FUNCTION__, exposure_1H);
         // ret |= i2c_write_reg(dev, cam->ctrl.client_sen, tout->toutsel_reg.address, tout->toutsel_reg.value, __FUNCTION__); //Tout1 output | Tout2 output
         // ret |= i2c_write_reg(dev, cam->ctrl.client_sen, tout->trigtoutsel_reg.address, tout->trigtoutsel_reg.value, __FUNCTION__); //Tout1 output | Tout2 output
 
