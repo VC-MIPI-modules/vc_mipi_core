@@ -978,7 +978,7 @@ static void vc_init_ctrl_imx585(struct vc_ctrl *ctrl, struct vc_desc* desc)
         INIT_MESSAGE("IMX585")
 
 
-        AGAIN_LIN(0xf0, 1280000)
+        AGAIN_LIN(240, 72000)
         
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x30dc, .m = 0x30dd };
         ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x302c, .m = 0x302d, .h = 0x0000, .u = 0x0000 };
@@ -988,8 +988,9 @@ static void vc_init_ctrl_imx585(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->flags                     = FLAG_EXPOSURE_SONY;
         ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
         ctrl->flags                    |= FLAG_IO_ENABLED;
-        ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL | FLAG_TRIGGER_SELF |
-                                          FLAG_TRIGGER_SINGLE | FLAG_TRIGGER_SYNC;
+        // No trigger support for IMX585
+
+                                         
 
         FRAME(0, 0, 3840, 2160)
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
