@@ -1937,8 +1937,7 @@ int vc_sen_set_gain(struct vc_cam *cam, __u64 gain, bool unit_is_mdB)
         switch (ctrl->again.type) {
         case GAIN_LINEAR:
                 again_times = vc_core_mdB_to_times(again_mdB);
-                again = ((1000000 * (__u64)ctrl->again.max) / ctrl->again.max_mdB) 
-                        * again_mdB / 1000000;
+                again = ((1000 * ctrl->again.max + 500) * again_mdB) / ctrl->again.max_mdB / 1000;
                 vc_dbg(dev, "%s(): GAIN_LIN %u mdB -> %u\n", __FUNCTION__, again_mdB, again);
                 break;
 
