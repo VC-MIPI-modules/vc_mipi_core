@@ -13,7 +13,7 @@
 #endif
 
 int debug = 3;
-// #define READ_DEFAULT_REG_VALUES
+#define READ_DEFAULT_REG_VALUES
 // #define OVERWRITE_HMAX
 
 #define MOD_REG_RESET            0x0100 // register  0 [0x0100]: reset and init register (R/W)
@@ -551,6 +551,7 @@ __u32 vc_core_get_hmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 bin
 #ifdef ENABLE_ADVANCED_CONTROL
         if (cam->state.hmax_overwrite > 0) {
                 return cam->state.hmax_overwrite;
+                vc_notice(vc_core_get_sen_device(cam), "%s(): Using HMAX overwrite: %d\n", __FUNCTION__, cam->state.hmax_overwrite);
         }
 #endif
         return vc_core_get_mode_by_param(cam, num_lanes, format, binning).hmax;
@@ -588,6 +589,7 @@ int vc_core_set_vmax_overwrite(struct vc_cam *cam, __s32 vmax_overwrite)
         vc_notice(dev, "%s(): Set VMAX overwrite: %d\n", __FUNCTION__, vmax_overwrite);
 
         cam->state.vmax_overwrite = vmax_overwrite;
+        cam->state.vmax = vmax_overwrite;
         return 0;
 }
 EXPORT_SYMBOL(vc_core_set_vmax_overwrite);
@@ -2134,8 +2136,8 @@ static __u64 vc_core_calculate_exposure_1H(struct vc_cam *cam, __u8 num_lanes, _
 __u32 vc_core_get_time_per_line_ns(struct vc_cam *cam)
 {
         struct vc_state *state = &cam->state;
-        __u8 format = vc_core_mbus_code_to_format(state->format_code);
-        return vc_core_calculate_period_1H(cam, state->num_lanes, format, state->binning_mode);
+        struct vc_ctrl *ctrl = &cam->ctrl;
+        return ((__u64)cam->state.hmax_overwrite  * 1000000000) / ctrl->clk_pixel;
 }
 EXPORT_SYMBOL(vc_core_get_time_per_line_ns);
 
