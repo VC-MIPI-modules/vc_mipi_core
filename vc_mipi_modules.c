@@ -147,8 +147,8 @@ static void vc_init_ctrl_imx290_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         FRAME(0, 0, 1920, 1080)
         
-        ctrl->clk_ext_trigger           = 74250000;
-        ctrl->clk_pixel                 = 74250000;
+        ctrl->clk_ext_trigger           = 37125000;
+        ctrl->clk_pixel                 = 37125000;
 
         ctrl->flags                     = FLAG_EXPOSURE_SONY;
         ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
@@ -480,7 +480,7 @@ static void vc_init_ctrl_imx327(struct vc_ctrl *ctrl, struct vc_desc* desc)
         INIT_MESSAGE("IMX327")
 
         vc_init_ctrl_imx290_base(ctrl, desc);
-
+       
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
         //                      mode           min       max    def   max   def
         MODE( 0, 2, FORMAT_RAW10, 0,    1100,    1,  0x3ffff, 0x465,  511,   60,         0)
@@ -588,8 +588,8 @@ static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE(10, 2, FORMAT_RAW10, 5,     436,   10,   0xffff, 0x0624, 1023,   40,         0)
         MODE(11, 4, FORMAT_RAW10, 5,     218,   10,   0xffff, 0x0624, 1023,   40,         0)
 
-        ctrl->clk_ext_trigger           = 27000000;
-        ctrl->clk_pixel                 = 27000000;
+        ctrl->clk_ext_trigger           = 600000000;
+        ctrl->clk_pixel                 = 600000000;
 
         BINNING_START(ctrl->binnings[0], 0, 0)
                 { IMX412_BINNING_MODE, IMX412_BINNING_MODE_DISABLE },
