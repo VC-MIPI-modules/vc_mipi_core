@@ -588,8 +588,8 @@ static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE(10, 2, FORMAT_RAW10, 5,     436,   10,   0xffff, 0x0624, 1023,   40,         0)
         MODE(11, 4, FORMAT_RAW10, 5,     218,   10,   0xffff, 0x0624, 1023,   40,         0)
 
-        ctrl->clk_ext_trigger           = 600000000;
-        ctrl->clk_pixel                 = 600000000;
+        ctrl->clk_ext_trigger           = 37125000;
+        ctrl->clk_pixel                 = 37125000;
 
         BINNING_START(ctrl->binnings[0], 0, 0)
                 { IMX412_BINNING_MODE, IMX412_BINNING_MODE_DISABLE },
