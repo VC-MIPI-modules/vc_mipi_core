@@ -678,9 +678,17 @@ struct vc_frame *vc_core_get_frame(struct vc_cam *cam)
 }
 EXPORT_SYMBOL(vc_core_get_frame);
 
+
+#define REG_GRP_PARAM_HOLD      0x0104
+#define GRP_PARAM_HOLD          0x01
+#define GRP_PARAM_APPLY         0x00
+
 int vc_core_live_roi(struct vc_cam *cam, __s32 data)
 {
+        struct vc_desc *desc = &cam->desc;
+        struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
+        struct i2c_client *client = ctrl->client_sen;
         struct device *dev = vc_core_get_sen_device(cam);
         __u16 binning_mode = data / 100000000;
         __u32 left = (data - binning_mode * 100000000) / 10000;
@@ -689,10 +697,18 @@ int vc_core_live_roi(struct vc_cam *cam, __s32 data)
                 binning_mode, left, top);
 
         if (state->streaming) {
-                vc_sen_stop_stream(cam);
-                vc_core_set_binning_mode(cam, binning_mode);
-                vc_core_limit_frame_position(cam, left, top);
-                vc_sen_start_stream(cam);
+                if (MOD_ID_IMX412 == desc->mod_id && state->binning_mode == binning_mode) {
+                        i2c_write_reg(dev, client, REG_GRP_PARAM_HOLD, GRP_PARAM_HOLD, __FUNCTION__);
+                        vc_core_limit_frame_position(cam, left, top);
+                        vc_sen_set_roi(cam);
+                        i2c_write_reg(dev, client, REG_GRP_PARAM_HOLD, GRP_PARAM_APPLY, __FUNCTION__);
+
+                } else {
+                        vc_sen_stop_stream(cam);
+                        vc_core_set_binning_mode(cam, binning_mode);
+                        vc_core_limit_frame_position(cam, left, top);
+                        vc_sen_start_stream(cam);
+                }
         }
 
         return 0;
