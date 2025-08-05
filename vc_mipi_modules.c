@@ -996,7 +996,10 @@ static void vc_init_ctrl_imx585(struct vc_ctrl *ctrl, struct vc_desc* desc)
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
         //                      mode           min       max    def   max   def
         MODE( 0, 2, FORMAT_RAW10, 0,    1100,    8,  0x1ffff,  0x08ca,  0x3ff,   0x32,   0)
-        MODE( 1, 4, FORMAT_RAW10, 0,    1100,    8,  0x1ffff,  0x08ca,  0x3ff,   0x32,   0)
+        MODE( 1, 2, FORMAT_RAW12, 0,    1100,    8,  0x1ffff,  0x08ca,  0x3ff,   0x32,   0)
+        MODE( 2, 4, FORMAT_RAW10, 0,    550,     8,  0x1ffff,  0x08ca,  0x3ff,   0x32,   0)
+        MODE( 3, 4, FORMAT_RAW12, 0,    550,     8,  0x1ffff,  0x08ca,  0x3ff,   0x32,   0)
+
        
 }
 
