@@ -337,9 +337,9 @@ static void vc_init_ctrl_imx265(struct vc_ctrl *ctrl, struct vc_desc* desc)
         FRAME(0, 0, 2048, 1536)
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
         //                      mode           min       max    def   max   def
-        MODE( 0, 2, FORMAT_RAW08, 0,     846,   10,  0xfffff,  1587,  255,  255,   1580040)
-        MODE( 1, 2, FORMAT_RAW10, 0,     846,   10,  0xfffff,  1587, 1023, 1023,   1580040)
-        MODE( 2, 2, FORMAT_RAW12, 0,     846,   10,  0xfffff,  1587, 4095, 4095,   1580040)
+        MODE( 0, 2, FORMAT_RAW08, 0,     846,   10,  0xfffff,  1587,  255,  15,   1580040)
+        MODE( 1, 2, FORMAT_RAW10, 0,     846,   10,  0xfffff,  1587, 1023,  60,   1580040)
+        MODE( 2, 2, FORMAT_RAW12, 0,     846,   10,  0xfffff,  1587, 4095, 240,   1580040)
 }
 
 // ------------------------------------------------------------------------------------------------
