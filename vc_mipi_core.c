@@ -2137,7 +2137,12 @@ __u32 vc_core_get_time_per_line_ns(struct vc_cam *cam)
 {
         struct vc_state *state = &cam->state;
         struct vc_ctrl *ctrl = &cam->ctrl;
-        return ((__u64)cam->state.hmax_overwrite  * 1000000000) / ctrl->clk_pixel;
+        __u8 num_lanes = state->num_lanes;
+        __u8 format = vc_core_mbus_code_to_format(state->format_code);
+        __u8 binning = state->binning_mode;
+        __u64 hmax = cam->state.hmax_overwrite > 0 ? cam->state.hmax_overwrite :  vc_core_get_hmax(cam, num_lanes, format, binning);
+;
+        return (hmax * 1000000000) / ctrl->clk_pixel;
 }
 EXPORT_SYMBOL(vc_core_get_time_per_line_ns);
 
