@@ -1312,7 +1312,7 @@ static __u32 vc_sen_read_hmax(struct vc_ctrl *ctrl)
 	struct device *dev = &client->dev;
 	__u32 hmax = i2c_read_reg4(dev, client, &ctrl->csr.sen.hmax, __FUNCTION__);
 
-	vc_notice(dev, "%s(): Read sensor HMAX: 0x%08x (%u)\n", __FUNCTION__, hmax, hmax);
+	vc_dbg(dev, "%s(): Read sensor HMAX: 0x%08x (%u)\n", __FUNCTION__, hmax, hmax);
 
 	return hmax;
 }
@@ -1323,7 +1323,7 @@ static __u32 vc_sen_read_vmax(struct vc_ctrl *ctrl)
         struct device *dev = &client->dev;
         __u32 vmax = i2c_read_reg4(dev, client, &ctrl->csr.sen.vmax, __FUNCTION__);
 
-        vc_notice(dev, "%s(): Read sensor VMAX: 0x%08x (%u)\n", __FUNCTION__, vmax, vmax);
+        vc_dbg(dev, "%s(): Read sensor VMAX: 0x%08x (%u)\n", __FUNCTION__, vmax, vmax);
 
         return vmax;
 }
@@ -1333,7 +1333,7 @@ static __u32 vc_sen_read_shs(struct vc_ctrl *ctrl)
         struct device *dev = &client->dev;
         __u32 vmax = i2c_read_reg4(dev, client, &ctrl->csr.sen.shs, __FUNCTION__);
 
-        vc_notice(dev, "%s(): Read sensor SHS: 0x%08x (%u)\n", __FUNCTION__, vmax, vmax);
+        vc_dbg(dev, "%s(): Read sensor SHS: 0x%08x (%u)\n", __FUNCTION__, vmax, vmax);
 
         return vmax;
 }
@@ -2442,15 +2442,17 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
                 case REG_TRIGGER_STREAM_EDGE:
                 case REG_TRIGGER_STREAM_LEVEL:
                         vc_calculate_exposure(cam, exposure_us);
-                        ret |= vc_sen_write_shs(ctrl, state->shs);
 
                         if(state->vmax_overwrite > 0) 
                         {
                                 ret |= vc_sen_write_vmax(ctrl, state->vmax_overwrite);
+                                ret |= vc_sen_write_shs(ctrl, 0);
+                                ret |= vc_sen_set_hmax(cam);
 
                         }
                         else
                         {
+                                ret |= vc_sen_write_shs(ctrl, state->shs);
                                 ret |= vc_sen_write_vmax(ctrl, state->vmax);
 
                         }
