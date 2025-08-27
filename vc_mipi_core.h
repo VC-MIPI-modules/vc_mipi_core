@@ -1,7 +1,7 @@
 #ifndef _VC_MIPI_CORE_H
 #define _VC_MIPI_CORE_H
 
-#define ENABLE_ADVANCED_CONTROL
+// #define ENABLE_ADVANCED_CONTROL
 
 #include <linux/types.h>
 #include <linux/i2c.h>
@@ -52,7 +52,7 @@ extern int debug;
 #define FORMAT_RAW14                    0x2d
 
 #define MAX_VC_MODES                    16
-#define MAX_BINNING_MODE_REGS           16
+#define MAX_VC_MODE_BINNING_REGS        16
 
 
 struct vc_desc_mode {
@@ -129,6 +129,17 @@ typedef struct vc_frame {
         __u32 height;
 } vc_frame;
 
+typedef struct vc_size {
+        __u32 width;
+        __u32 height;
+} vc_size;
+
+typedef struct vc_image_area {
+        struct vc_frame a;      // analog crop
+        struct vc_size d;       // digital crop
+        struct vc_size o;       // out crop
+} vc_image_area;
+
 typedef struct vc_csr2 {
         __u32 l;
         __u32 m;
@@ -142,6 +153,9 @@ typedef struct vc_csr4 {
 } vc_csr4;
 
 struct vc_sen_csr {
+#ifdef ENABLE_ADVANCED_CONTROL 
+        struct vc_csr2 vt_syck_div;
+#endif
         struct vc_csr2 mode;
         __u8 mode_standby;
         __u8 mode_operating;
@@ -151,14 +165,23 @@ struct vc_sen_csr {
         struct vc_csr2 again;
         struct vc_csr2 dgain;
         struct vc_csr2 blacklevel;
+
         struct vc_csr2 h_start;
         struct vc_csr2 v_start;
         struct vc_csr2 h_end;
         struct vc_csr2 v_end;
         struct vc_csr2 w_width;
         struct vc_csr2 w_height;
+        struct vc_csr2 d_left;
+        struct vc_csr2 d_top;
+        struct vc_csr2 d_width;
+        struct vc_csr2 d_height;
         struct vc_csr2 o_width;
         struct vc_csr2 o_height;
+
+        struct vc_csr2 scale;
+        struct vc_csr2 group_hold;
+
         struct vc_csr4 flash_duration;
         struct vc_csr4 flash_offset;
 };
@@ -180,25 +203,20 @@ typedef struct vc_mode {
         vc_control vmax;
         vc_control blacklevel;
         __u32      retrigger_min;
-        struct vc_reg binning_mode_regs[MAX_BINNING_MODE_REGS];
+        struct vc_reg binning_mode_regs[MAX_VC_MODE_BINNING_REGS];
 } vc_mode;
 
-typedef struct vc_binning {
+typedef struct vc_scaling {
         __u8 h_factor;
         __u8 v_factor;
         struct vc_reg regs[8];
-} vc_binning;
+} vc_scaling;
 
-#define BINNING_START(binning, h, v) \
-        binning = (vc_binning) { .h_factor = h, .v_factor = v }; \
+#define SCALING_START(scaling, h, v) \
+        scaling = (vc_scaling) { .h_factor = h, .v_factor = v }; \
         { const struct vc_reg regs [] = {
-#define BINNING_END(binning) \
-        , {0, 0} }; memcpy(&binning.regs, regs, sizeof(regs)); }
-
-typedef struct dt_binning_mode {
-        __u32 binning_mode;
-        bool  mode_set;
-} dt_binning_mode;
+#define SCALING_END(scaling) \
+        , {0, 0} }; memcpy(&scaling.regs, regs, sizeof(regs)); }
 
 struct vc_ctrl {
         // Communication
@@ -206,6 +224,7 @@ struct vc_ctrl {
         struct i2c_client *client_sen;
         struct i2c_client *client_mod;
         // Controls
+
         struct vc_mode mode[MAX_VC_MODES];
         struct vc_control exposure;
         struct vc_gain again;
@@ -213,8 +232,11 @@ struct vc_ctrl {
         struct vc_control framerate;
         // Modes & Frame Formats
         struct vc_frame frame;          // Pixel
-        struct vc_binning binnings[8];
-        __u8 max_binning_modes_used;
+        struct vc_scaling binnings[8];
+        __u8 max_supported_binning_modes;
+        struct vc_scaling scalings[3];
+        __u8 max_supported_scaling_modes;
+        __u8 scale_numerator;
         
         // Control and status registers
         struct vc_csr csr;
@@ -239,16 +261,20 @@ struct vc_state {
         __u32 retrigger_cnt;
         __u32 framerate;
         __u32 format_code;
-        struct vc_frame frame;          // Pixel
+        struct vc_frame c_frame;       // Pixel
+        struct vc_frame o_frame;       // Pixel
         __u8 num_lanes;
         __u8 io_mode;
         __u8 trigger_mode;
         __u8 binning_mode;
         __u8 former_binning_mode;
+        __u8 scaling_mode;
+        __s32 scale;
         int power_on;
         int streaming;
         __u8 flags;
 #ifdef ENABLE_ADVANCED_CONTROL
+        __s32 vt_syck_div;
         __s32 hmax_overwrite;
         __s32 vmax_overwrite;
         __s32 width_offset;
@@ -274,18 +300,24 @@ vc_mode vc_core_get_mode(struct vc_cam *cam);
 int vc_core_enum_mbus_code(struct vc_cam *cam, __u32 index);
 int vc_core_set_format(struct vc_cam *cam, __u32 code);
 __u32 vc_core_get_format(struct vc_cam *cam);
-int vc_core_set_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __u32 height);
-struct vc_frame *vc_core_get_frame(struct vc_cam *cam);
+struct vc_frame *vc_core_get_native_frame(struct vc_cam *cam);
+struct vc_frame *vc_core_get_crop_frame(struct vc_cam *cam);
+int vc_core_set_crop_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __u32 height);
+struct vc_frame *vc_core_get_out_frame(struct vc_cam *cam);
+int vc_core_set_out_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __u32 height);
 int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number);
 __u32 vc_core_get_num_lanes(struct vc_cam *cam);
 int vc_core_set_framerate(struct vc_cam *cam, __u32 framerate);
 __u32 vc_core_get_framerate(struct vc_cam *cam);
 __u32 vc_core_get_time_per_line_ns(struct vc_cam *cam);                         // Only used by NXP driver
 int vc_core_set_binning_mode(struct vc_cam *cam, int mode);
+int vc_core_set_scaling_mode(struct vc_cam *cam, int mode);
+int vc_core_set_scale(struct vc_cam *cam, int scale);
 __u64 vc_core_mdB_to_times(int mdB);                                            // Only used by NXP driver
 int vc_core_times_to_mdB(__u64 times);                                          // Only used by NXP driver
-int vc_core_live_roi(struct vc_cam *cam, __s32 data);                           // Only used by NXP driver
 #ifdef ENABLE_ADVANCED_CONTROL
+int vc_core_live_roi(struct vc_cam *cam, __u32 scale, __u32 left, __u32 top);   // Only used by NXP driver
+int vc_core_set_vt_syck_div(struct vc_cam *cam, __s32 divider);                 // Only used by NXP driver
 int vc_core_set_hmax_overwrite(struct vc_cam *cam, __s32 hmax_overwrite);       // Only used by NXP driver
 int vc_core_set_vmax_overwrite(struct vc_cam *cam, __s32 vmax_overwrite);       // Only used by NXP driver
 int vc_core_set_width_offset(struct vc_cam *cam, __s32 width_offset);           // Only used by NXP driver

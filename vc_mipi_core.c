@@ -54,6 +54,9 @@
 #define MODE_TYPE_TRIGGER        0x02
 #define MODE_TYPE_SLAVE          0x03
 
+#define GROUP_HOLD               0x01
+#define GROUP_APPLY              0x00
+
 
 // ------------------------------------------------------------------------------------------------
 // Global variables
@@ -69,10 +72,10 @@ int vc_core_try_format(struct vc_cam *cam, __u32 code);
 __u32 vc_core_calculate_max_exposure(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
 __u32 vc_core_calculate_max_frame_rate(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning, __u32 height);
 static __u32 vc_core_calculate_period_1H(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
-void vc_core_calculate_roi(struct vc_cam *cam, __u32 *w_left, __u32 *w_right, __u32 *w_width,
-        __u32 *w_top, __u32 *w_bottom, __u32 *w_height, __u32 *o_width, __u32 *o_height);
+void vc_core_calculate_image_area(struct vc_cam *cam, struct vc_image_area *area);
 static int vc_sen_read_image_size(struct vc_ctrl *ctrl, struct vc_frame *size);
-struct vc_binning *vc_core_get_binning(struct vc_cam *cam);
+struct vc_scaling *vc_core_get_binning(struct vc_cam *cam);
+struct vc_scaling *vc_core_get_scaling(struct vc_cam *cam);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -443,12 +446,18 @@ EXPORT_SYMBOL(vc_core_get_mode);
 
 static __u32 vc_core_get_hmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
 {
+        __u32 hmax = vc_core_get_mode_by_param(cam, num_lanes, format, binning).hmax;
+
 #ifdef ENABLE_ADVANCED_CONTROL
         if (cam->state.hmax_overwrite > 0) {
                 return cam->state.hmax_overwrite;
         }
+        if (cam->state.vt_syck_div > 0) {
+                // NOTE: Currently this is IMX412 specific!
+                return hmax * cam->state.vt_syck_div / 4;
+        }
 #endif
-        return vc_core_get_mode_by_param(cam, num_lanes, format, binning).hmax;
+        return hmax;
 }
 
 static vc_control vc_core_get_vmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
@@ -467,10 +476,40 @@ static __u32 vc_core_get_retrigger(struct vc_cam *cam, __u8 num_lanes, __u8 form
 }
 
 #ifdef ENABLE_ADVANCED_CONTROL
+int vc_core_live_roi(struct vc_cam *cam, __u32 scale, __u32 left, __u32 top)
+{
+        struct vc_ctrl *ctrl = &cam->ctrl;
+        struct i2c_client *client = ctrl->client_sen;
+        struct device *dev = vc_core_get_sen_device(cam);
+
+        vc_dbg(dev, "%s(): scale: %u, left: %u, top: %u\n", __FUNCTION__, 
+                scale, left, top);
+
+        i2c_write_reg2(dev, client, &ctrl->csr.sen.group_hold, GROUP_HOLD, __FUNCTION__);
+        i2c_write_reg2(dev, client, &ctrl->csr.sen.scale, scale, __FUNCTION__);
+        i2c_write_reg2(dev, client, &ctrl->csr.sen.d_left, left, __FUNCTION__);
+        i2c_write_reg2(dev, client, &ctrl->csr.sen.d_top, top, __FUNCTION__);
+        i2c_write_reg2(dev, client, &ctrl->csr.sen.group_hold, GROUP_APPLY, __FUNCTION__);
+
+        return 0;
+}
+EXPORT_SYMBOL(vc_core_live_roi);
+
+int vc_core_set_vt_syck_div(struct vc_cam *cam, __s32 divider)
+{
+        struct device *dev = vc_core_get_sen_device(cam);
+        vc_info(dev, "%s(): Set VT SYCK DIV: %d\n", __FUNCTION__, divider);
+
+        cam->state.vt_syck_div = divider;
+        vc_core_update_controls(cam);
+        return 0;
+}
+EXPORT_SYMBOL(vc_core_set_vt_syck_div);
+
 int vc_core_set_hmax_overwrite(struct vc_cam *cam, __s32 hmax_overwrite)
 {
         struct device *dev = vc_core_get_sen_device(cam);
-        vc_notice(dev, "%s(): Set HMAX overwrite: %d\n", __FUNCTION__, hmax_overwrite);
+        vc_info(dev, "%s(): Set HMAX overwrite: %d\n", __FUNCTION__, hmax_overwrite);
 
         cam->state.hmax_overwrite = hmax_overwrite;
         return 0;
@@ -480,7 +519,7 @@ EXPORT_SYMBOL(vc_core_set_hmax_overwrite);
 int vc_core_set_vmax_overwrite(struct vc_cam *cam, __s32 vmax_overwrite)
 {
         struct device *dev = vc_core_get_sen_device(cam);
-        vc_notice(dev, "%s(): Set VMAX overwrite: %d\n", __FUNCTION__, vmax_overwrite);
+        vc_info(dev, "%s(): Set VMAX overwrite: %d\n", __FUNCTION__, vmax_overwrite);
 
         cam->state.vmax_overwrite = vmax_overwrite;
         return 0;
@@ -490,7 +529,7 @@ EXPORT_SYMBOL(vc_core_set_vmax_overwrite);
 int vc_core_set_width_offset(struct vc_cam *cam, __s32 width_offset)
 {
         struct device *dev = vc_core_get_sen_device(cam);
-        vc_notice(dev, "%s(): Set width offset: %d\n", __FUNCTION__, width_offset);
+        vc_info(dev, "%s(): Set width offset: %d\n", __FUNCTION__, width_offset);
 
         cam->state.width_offset = width_offset;
         return 0;
@@ -500,7 +539,7 @@ EXPORT_SYMBOL(vc_core_set_width_offset);
 int vc_core_set_height_offset(struct vc_cam *cam, __s32 height_offset)
 {
         struct device *dev = vc_core_get_sen_device(cam);
-        vc_notice(dev, "%s(): Set height offset: %d\n", __FUNCTION__, height_offset);
+        vc_info(dev, "%s(): Set height offset: %d\n", __FUNCTION__, height_offset);
 
         cam->state.height_offset = height_offset;
         return 0;
@@ -560,7 +599,7 @@ int vc_core_try_format(struct vc_cam *cam, __u32 code)
         int index;
 
         vc_core_get_fourcc_fmt(code, fourcc);
-        vc_notice(dev, "%s(): Try format 0x%04x (%s, format: 0x%02x)\n", __FUNCTION__, code, fourcc, format);
+        vc_info(dev, "%s(): Try format 0x%04x (%s, format: 0x%02x)\n", __FUNCTION__, code, fourcc, format);
 
         for (index = 0; index < desc->num_modes; index++) {
                 struct vc_desc_mode *mode = &desc->modes[index];
@@ -580,7 +619,7 @@ int vc_core_set_format(struct vc_cam *cam, __u32 code)
         char fourcc[5];
 
         vc_core_get_fourcc_fmt(code, fourcc);
-        vc_notice(dev, "%s(): Set format: 0x%04x (%s)\n", __FUNCTION__, code, fourcc);
+        vc_info(dev, "%s(): Set format: 0x%04x (%s)\n", __FUNCTION__, code, fourcc);
 
         if (vc_core_try_format(cam, code)) {
                 state->format_code = vc_core_get_default_format(cam);
@@ -604,116 +643,85 @@ __u32 vc_core_get_format(struct vc_cam *cam)
         char fourcc[5];
 
         vc_core_get_fourcc_fmt(code, fourcc);
-        vc_notice(dev, "%s(): Get format: 0x%04x (%s)\n", __FUNCTION__, code, fourcc);
+        vc_info(dev, "%s(): Get format: 0x%04x (%s)\n", __FUNCTION__, code, fourcc);
 
         return code;
 }
 EXPORT_SYMBOL(vc_core_get_format);
 
-static void vc_core_limit_frame_position(struct vc_cam *cam, __u32 left, __u32 top)
+struct vc_frame *vc_core_get_native_frame(struct vc_cam *cam)
 {
-        struct vc_ctrl *ctrl = &cam->ctrl;
-        struct vc_state *state = &cam->state;
-
-        if (left > ctrl->frame.width - state->frame.width) {
-                state->frame.left = ctrl->frame.width - state->frame.width;
-        } else {
-                state->frame.left = left;
-        }
-
-        if (top > ctrl->frame.height - state->frame.height) {
-                state->frame.top = ctrl->frame.height - state->frame.height;
-        } else {
-                state->frame.top = top;
-        }
-}
-
-static void vc_core_limit_frame_size(struct vc_cam *cam, __u32 width, __u32 height)
-{
-        struct vc_ctrl *ctrl = &cam->ctrl;
-        struct vc_state *state = &cam->state;
-
-        if (width > ctrl->frame.width) {
-                state->frame.width = ctrl->frame.width;
-        } else {
-                state->frame.width = width;
-        }
-
-        if (height > ctrl->frame.height) {
-                state->frame.height = ctrl->frame.height;
-        } else {
-                state->frame.height = height;
-        }
-}
-
-int vc_core_set_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __u32 height)
-{
-        struct vc_state *state = &cam->state;
+        struct vc_frame* frame = &cam->ctrl.frame;
         struct device *dev = vc_core_get_sen_device(cam);
 
-        vc_notice(dev, "%s(): Set frame (left: %u, top: %u, width: %u, height: %u)\n", __FUNCTION__, left, top, width, height);
+        vc_info(dev, "%s(): Get frame (%u, %u)/%ux%u\n", __FUNCTION__, 
+                frame->left, frame->top, frame->width, frame->height);
 
-        vc_core_limit_frame_size(cam, width, height);
-        vc_core_limit_frame_position(cam, left, top);
+        return frame;
+}
+EXPORT_SYMBOL(vc_core_get_native_frame);
 
-        if (state->frame.left != left || state->frame.top != top || state->frame.width != width || state->frame.height != height) {
-                vc_warn(dev, "%s(): Adjusted frame (left: %u, top: %u, width: %u, height: %u)\n", __FUNCTION__,
-                state->frame.left, state->frame.top, state->frame.width, state->frame.height);
-        }
+struct vc_frame *vc_core_get_crop_frame(struct vc_cam *cam)
+{
+        struct vc_frame* frame = &cam->state.c_frame;
+        struct device *dev = vc_core_get_sen_device(cam);
+
+        vc_info(dev, "%s(): Get crop frame (%u, %u)/%ux%u\n", __FUNCTION__, 
+                frame->left, frame->top, frame->width, frame->height);
+
+        return frame;
+}
+EXPORT_SYMBOL(vc_core_get_crop_frame);
+
+int vc_core_set_crop_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __u32 height)
+{
+        struct vc_frame* frame = &cam->state.c_frame;
+        struct device *dev = vc_core_get_sen_device(cam);
+
+        vc_info(dev, "%s(): Set crop frame (%u, %u)/%ux%u\n", __FUNCTION__, 
+                left, top, width, height);
+
+        frame->left = left;
+        frame->top = top;
+        frame->width = width;
+        frame->height = height;
 
         vc_core_update_controls(cam);
 
         return 0;
 }
-EXPORT_SYMBOL(vc_core_set_frame);
+EXPORT_SYMBOL(vc_core_set_crop_frame);
 
-struct vc_frame *vc_core_get_frame(struct vc_cam *cam)
+struct vc_frame *vc_core_get_out_frame(struct vc_cam *cam)
 {
-        struct vc_frame* frame = &cam->state.frame;
+        struct vc_frame* frame = &cam->state.o_frame;
         struct device *dev = vc_core_get_sen_device(cam);
 
-        vc_notice(dev, "%s(): Get frame (width: %u, height: %u)\n", __FUNCTION__, frame->width, frame->height);
+        vc_info(dev, "%s(): Get out frame (%u, %u)/%ux%u\n", __FUNCTION__, 
+                frame->left, frame->top, frame->width, frame->height);
 
         return frame;
 }
-EXPORT_SYMBOL(vc_core_get_frame);
+EXPORT_SYMBOL(vc_core_get_out_frame);
 
-
-#define REG_GRP_PARAM_HOLD      0x0104
-#define GRP_PARAM_HOLD          0x01
-#define GRP_PARAM_APPLY         0x00
-
-int vc_core_live_roi(struct vc_cam *cam, __s32 data)
+int vc_core_set_out_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __u32 height)
 {
-        struct vc_desc *desc = &cam->desc;
-        struct vc_ctrl *ctrl = &cam->ctrl;
-        struct vc_state *state = &cam->state;
-        struct i2c_client *client = ctrl->client_sen;
+        struct vc_frame* frame = &cam->state.o_frame;
         struct device *dev = vc_core_get_sen_device(cam);
-        __u16 binning_mode = data / 100000000;
-        __u32 left = (data - binning_mode * 100000000) / 10000;
-        __u32 top = data - binning_mode * 100000000 - left * 10000;
-        vc_notice(dev, "%s(): binning_mode: %u, left: %u, top: %u\n", __FUNCTION__, 
-                binning_mode, left, top);
 
-        if (state->streaming) {
-                if (MOD_ID_IMX412 == desc->mod_id && state->binning_mode == binning_mode) {
-                        i2c_write_reg(dev, client, REG_GRP_PARAM_HOLD, GRP_PARAM_HOLD, __FUNCTION__);
-                        vc_core_limit_frame_position(cam, left, top);
-                        vc_sen_set_roi(cam);
-                        i2c_write_reg(dev, client, REG_GRP_PARAM_HOLD, GRP_PARAM_APPLY, __FUNCTION__);
+        vc_info(dev, "%s(): Set out frame (%u, %u)/%ux%u\n", __FUNCTION__, 
+                left, top, width, height);
 
-                } else {
-                        vc_sen_stop_stream(cam);
-                        vc_core_set_binning_mode(cam, binning_mode);
-                        vc_core_limit_frame_position(cam, left, top);
-                        vc_sen_start_stream(cam);
-                }
-        }
+        frame->left = left;
+        frame->top = top;
+        frame->width = width;
+        frame->height = height;
+
+        vc_core_update_controls(cam);
 
         return 0;
 }
-EXPORT_SYMBOL(vc_core_live_roi);
+EXPORT_SYMBOL(vc_core_set_out_frame);
 
 int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number)
 {
@@ -725,7 +733,7 @@ int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number)
         for (index = 0; index < desc->num_modes; index++) {
                 struct vc_desc_mode *mode = &desc->modes[index];
                 if (mode->num_lanes == number) {
-                        vc_notice(dev, "%s(): Set number of lanes: %u\n", __FUNCTION__, number);
+                        vc_info(dev, "%s(): Set number of lanes: %u\n", __FUNCTION__, number);
                         state->num_lanes = number;
                         vc_core_update_controls(cam);
                         return 0;
@@ -749,18 +757,15 @@ EXPORT_SYMBOL(vc_core_get_num_lanes);
 
 int vc_core_set_framerate(struct vc_cam *cam, __u32 framerate)
 {
-        struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
         struct device *dev = vc_core_get_sen_device(cam);
 
-        vc_notice(dev, "%s(): Set framerate: %u mHz\n", __FUNCTION__, framerate);
+        vc_info(dev, "%s(): Set framerate: %u mHz\n", __FUNCTION__, framerate);
 
-        if (framerate < ctrl->framerate.min) {
-                framerate = ctrl->framerate.min;
-        }
-        if (framerate > ctrl->framerate.max) {
-                framerate = ctrl->framerate.max;
-        }
+        // NOTE: The frame rate is no longer limited by the minimum and maximum limits. 
+        //       Since there are several parameters that affect the frame rate limits, it would 
+        //       always be necessary to set these first and then the frame rate. To eliminate 
+        //       this dependency, the limit has been removed.
         state->framerate = framerate;
 
         return vc_sen_set_exposure(cam, cam->state.exposure);
@@ -780,7 +785,7 @@ __u32 vc_core_get_framerate(struct vc_cam *cam)
                 framerate = ctrl->framerate.max;
         }
 
-        vc_notice(dev, "%s(): Get framerate: %u mHz\n", __FUNCTION__, framerate);
+        vc_info(dev, "%s(): Get framerate: %u mHz\n", __FUNCTION__, framerate);
         return framerate;
 }
 EXPORT_SYMBOL(vc_core_get_framerate);
@@ -819,9 +824,9 @@ __u32 vc_core_calculate_max_exposure(struct vc_cam *cam, __u8 num_lanes, __u8 fo
 static __u32 vc_core_get_optimized_vmax(struct vc_cam *cam, __u8 num_lanes,  __u8 format, __u8 binning_mode, __u32 height)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
-        struct device *dev = &ctrl->client_sen->dev;
+        struct device *dev = vc_core_get_sen_device(cam);
         __u32 vmax_def = vc_core_get_vmax(cam, num_lanes, format, binning_mode).def;
-        struct vc_binning *binning = vc_core_get_binning(cam);
+        struct vc_scaling *binning = vc_core_get_binning(cam);
         __u32 vmax_res = vmax_def;
 
         if (0 == vmax_def) {
@@ -912,10 +917,10 @@ static int vc_mod_set_power(struct vc_cam *cam, int on)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct i2c_client *client_mod = ctrl->client_mod;
-        struct device *dev = &client_mod->dev;
+        struct device *dev = vc_core_get_mod_device(cam);
         int ret;
 
-        vc_notice(dev, "%s(): Set module power: %s\n", __FUNCTION__, on ? "up" : "down");
+        vc_info(dev, "%s(): Set module power: %s\n", __FUNCTION__, on ? "up" : "down");
 
         ret = i2c_write_reg(dev, client_mod, MOD_REG_RESET, on ? REG_RESET_PWR_UP : REG_RESET_PWR_DOWN, __FUNCTION__);
         if (ret) {
@@ -1052,10 +1057,12 @@ int vc_core_update_controls(struct vc_cam *cam)
         __u8 num_lanes = state->num_lanes;
         __u8 format = vc_core_mbus_code_to_format(state->format_code);
         __u8 binning = state->binning_mode;
-        __u32 height = state->frame.height;
+        struct vc_image_area area;
+        vc_core_calculate_image_area(cam, &area);
+
         if (ctrl->flags & FLAG_INCREASE_FRAME_RATE) {
                 ctrl->exposure.max = vc_core_calculate_max_exposure(cam, num_lanes, format, binning);
-                ctrl->framerate.max = vc_core_calculate_max_frame_rate(cam, num_lanes, format, binning, height);
+                ctrl->framerate.max = vc_core_calculate_max_frame_rate(cam, num_lanes, format, binning, area.a.height);
 
                 vc_dbg(dev, "%s(): num_lanes: %u, format %u, exposure.max: %u us, framerate.max: %u mHz\n",
                         __FUNCTION__, num_lanes, format, ctrl->exposure.max, ctrl->framerate.max);
@@ -1072,7 +1079,6 @@ static void vc_core_state_init(struct vc_cam *cam)
         __u8 format = 0;
         __u32 blacklevel_def = 0;
         __u32 blacklevel_max = 0;
-        __u8 binning = state->binning_mode;
 
         state->mode = 0xff;
         state->exposure = ctrl->exposure.def;
@@ -1085,18 +1091,27 @@ static void vc_core_state_init(struct vc_cam *cam)
         state->num_lanes = desc->modes[0].num_lanes;
         state->format_code = vc_core_get_default_format(cam);
         format = vc_core_mbus_code_to_format(state->format_code);
-        blacklevel_def = vc_core_get_blacklevel(cam, state->num_lanes, format, binning).def;
-        blacklevel_max = vc_core_get_blacklevel(cam, state->num_lanes, format, binning).max + 1;
+        state->binning_mode = 0;
+        state->scaling_mode = 0;
+        state->scale = ctrl->scale_numerator;
+
+        blacklevel_def = vc_core_get_blacklevel(cam, state->num_lanes, format, state->binning_mode).def;
+        blacklevel_max = vc_core_get_blacklevel(cam, state->num_lanes, format, state->binning_mode).max + 1;
         state->blacklevel = (__u32)DIV_ROUND_CLOSEST(blacklevel_def * 100000, blacklevel_max);
 
-        state->frame.left = 0;
-        state->frame.top = 0;
-        state->frame.width = ctrl->frame.width;
-        state->frame.height = ctrl->frame.height;
+        state->c_frame.left = 0;
+        state->c_frame.top = 0;
+        state->c_frame.width = 0;
+        state->c_frame.height = 0;
+        state->o_frame.left = 0;
+        state->o_frame.top = 0;
+        state->o_frame.width = ctrl->frame.width;
+        state->o_frame.height = ctrl->frame.height;
         state->streaming = 0;
         state->flags = 0x00;
 
 #ifdef ENABLE_ADVANCED_CONTROL
+        state->vt_syck_div = 0;
         state->hmax_overwrite = 0;
         state->vmax_overwrite = 0;
         state->width_offset = 0;
@@ -1127,7 +1142,7 @@ int vc_core_init(struct vc_cam *cam, struct i2c_client *client)
         vc_core_update_controls(cam);
         vc_core_print_mode(cam);
 
-        vc_notice(&ctrl->client_mod->dev, "VC MIPI Core successfully initialized\n");
+        vc_info(&ctrl->client_mod->dev, "VC MIPI Core successfully initialized\n");
         return 0;
 }
 EXPORT_SYMBOL(vc_core_init);
@@ -1218,7 +1233,7 @@ static int vc_mod_reset_module(struct vc_cam *cam, __u8 mode)
 
         vc_dbg(dev, "%s(): Reset the module!\n", __FUNCTION__);
 
-        ret = vc_mod_set_power(cam, 0);
+        ret  = vc_mod_set_power(cam, 0);
         ret |= vc_mod_write_mode(client, mode);
         ret |= vc_mod_set_power(cam, 1);
         ret |= vc_mod_wait_until_module_is_ready(client);
@@ -1233,7 +1248,7 @@ static __u32 vc_sen_read_hmax(struct vc_ctrl *ctrl)
 	struct device *dev = &client->dev;
 	__u32 hmax = i2c_read_reg4(dev, client, &ctrl->csr.sen.hmax, __FUNCTION__);
 
-	vc_notice(dev, "%s(): Read sensor HMAX: 0x%08x (%u)\n", __FUNCTION__, hmax, hmax);
+	vc_info(dev, "%s(): Read sensor HMAX: 0x%08x (%u)\n", __FUNCTION__, hmax, hmax);
 
 	return hmax;
 }
@@ -1244,7 +1259,7 @@ static __u32 vc_sen_read_vmax(struct vc_ctrl *ctrl)
         struct device *dev = &client->dev;
         __u32 vmax = i2c_read_reg4(dev, client, &ctrl->csr.sen.vmax, __FUNCTION__);
 
-        vc_notice(dev, "%s(): Read sensor VMAX: 0x%08x (%u)\n", __FUNCTION__, vmax, vmax);
+        vc_info(dev, "%s(): Read sensor VMAX: 0x%08x (%u)\n", __FUNCTION__, vmax, vmax);
 
         return vmax;
 }
@@ -1379,7 +1394,7 @@ int vc_mod_set_trigger_mode(struct vc_cam *cam, int mode)
 
         vc_core_update_controls(cam);
 
-        vc_notice(dev, "%s(): Set trigger mode: %s\n", __FUNCTION__, mode_desc);
+        vc_info(dev, "%s(): Set trigger mode: %s\n", __FUNCTION__, mode_desc);
 
         return 0;
 }
@@ -1406,7 +1421,7 @@ int vc_mod_set_single_trigger(struct vc_cam *cam)
         struct i2c_client *client = cam->ctrl.client_mod;
         struct device *dev = &client->dev;
 
-        vc_notice(dev, "%s(): Set single trigger\n", __FUNCTION__);
+        vc_info(dev, "%s(): Set single trigger\n", __FUNCTION__);
 
         return i2c_write_reg(dev, client, MOD_REG_EXTTRIG, REG_TRIGGER_SINGLE, __FUNCTION__);
 }
@@ -1457,7 +1472,7 @@ int vc_mod_set_io_mode(struct vc_cam *cam, int mode)
                 return -EINVAL;
         }
 
-        vc_notice(dev, "%s(): Set IO mode: %s\n", __FUNCTION__, mode_desc);
+        vc_info(dev, "%s(): Set IO mode: %s\n", __FUNCTION__, mode_desc);
 
         return 0;
 }
@@ -1513,14 +1528,14 @@ static int vc_sen_read_image_size(struct vc_ctrl *ctrl, struct vc_frame *size)
         return 0;
 }
 
-struct vc_binning *vc_core_get_binning(struct vc_cam *cam)
+struct vc_scaling *vc_core_get_binning(struct vc_cam *cam)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
         struct i2c_client *client = ctrl->client_sen;
         struct device *dev = &client->dev;
 
-        if (state->binning_mode >= ARRAY_SIZE(ctrl->binnings)) {
+        if (state->binning_mode > ctrl->max_supported_binning_modes) {
                 vc_err(dev, "%s(): Invalid binning mode! \n", __FUNCTION__);
                 return NULL;
         }
@@ -1528,55 +1543,113 @@ struct vc_binning *vc_core_get_binning(struct vc_cam *cam)
         return &ctrl->binnings[state->binning_mode];
 }
 
-void vc_core_calculate_roi(struct vc_cam *cam, __u32 *left, __u32 *right, __u32 *width,
-        __u32 *top, __u32 *bottom, __u32 *height, __u32 *o_width, __u32 *o_height)
+struct vc_scaling *vc_core_get_scaling(struct vc_cam *cam)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
         struct i2c_client *client = ctrl->client_sen;
         struct device *dev = &client->dev;
-        struct vc_binning *binning = vc_core_get_binning(cam);
-#ifdef ENABLE_ADVANCED_CONTROL
-        __u32 frame_width = state->frame.width + state->width_offset;
-        __u32 frame_height = state->frame.height + state->height_offset;
-#else
-        __u32 frame_width = state->frame.width;
-        __u32 frame_height = state->frame.height;
-#endif
 
+        if (state->scaling_mode > ctrl->max_supported_scaling_modes) {
+                vc_err(dev, "%s(): Invalid scaling mode! \n", __FUNCTION__);
+                return NULL;
+        }
+
+        return &ctrl->scalings[state->scaling_mode];
+}
+
+void vc_core_calculate_image_area(struct vc_cam *cam, struct vc_image_area *area)
+{
+        struct vc_ctrl *ctrl = &cam->ctrl;
+        struct vc_state *state = &cam->state;
+        struct i2c_client *client = ctrl->client_sen;
+        struct device *dev = &client->dev;
+        struct vc_scaling *scaling = vc_core_get_scaling(cam);
+        struct vc_scaling *binning = vc_core_get_binning(cam);
+
+        if (NULL == scaling) {
+                vc_err(dev, "%s() Could not get scaling struct!\n", __FUNCTION__);
+                return;
+        }
         if (NULL == binning) {
                 vc_err(dev, "%s() Could not get binning struct!\n", __FUNCTION__);
                 return;
         }
 
-        *left = ctrl->frame.left + state->frame.left;
-        *top = ctrl->frame.top + state->frame.top;
-        if ((binning->h_factor == 0) || (binning->v_factor == 0)) {
-                *width = frame_width;
-                *height = frame_height;
+        // Calculate out cropping area
+#ifdef ENABLE_ADVANCED_CONTROL
+        area->o.width = state->o_frame.width + state->width_offset;
+        area->o.height = state->o_frame.height + state->height_offset;
+#else
+        area->o.width = state->o_frame.width;
+        area->o.height = state->o_frame.height;
+#endif
+
+        area->a.left = ctrl->frame.left + state->o_frame.left;
+        area->a.top = ctrl->frame.top + state->o_frame.top;
+
+        // Calculate analog cropping area
+        if (state->c_frame.width > 0 && state->c_frame.height > 0) {
+                area->a.width = state->c_frame.width;
+                area->a.height = state->c_frame.height;
 
         } else {
-                *width = frame_width * binning->h_factor;
-                *height = frame_height * binning->v_factor;
+                area->a.width = area->o.width;
+                area->a.height = area->o.height;
+
+                if (scaling->h_factor > 0) {
+                        area->a.width = (area->a.width * state->scale) / ctrl->scale_numerator;
+                }
+                if (scaling->v_factor > 0) {
+                        area->a.height = (area->a.height * state->scale) / ctrl->scale_numerator;
+                }
+
+                if (binning->h_factor > 0) {
+                        area->a.width *= binning->h_factor;
+                }
+                if (binning->v_factor > 0) {
+                        area->a.height *= binning->v_factor;
+                }
+
+                if (area->a.left + area->a.width > ctrl->frame.width) {
+                        area->a.width = ctrl->frame.width - area->a.left;
+                }
+                if (area->a.top + area->a.height > ctrl->frame.height) {
+                        area->a.height = ctrl->frame.height - area->a.top;
+                }
         }
 
-        *o_width = frame_width;
-        *o_height = frame_height;
+        // Calculate digital cropping area
+        area->d.width = area->o.width;
+        area->d.height = area->o.height;
 
+        if (scaling->h_factor > 0) {
+                area->d.width = (area->d.width * state->scale) / ctrl->scale_numerator;
+        }
+        if (scaling->v_factor > 0) {
+                area->d.height = (area->d.height * state->scale) / ctrl->scale_numerator;
+        }
+
+        if (area->d.width > area->a.width) {
+                area->d.width = area->a.width;
+        }
+        if (area->d.height > area->a.height) {
+                area->d.height = area->a.height;
+        }
+
+        // Double height in case of flag FLAG_DOUBLE_HEIGHT
         if (ctrl->flags & FLAG_DOUBLE_HEIGHT) {
-                *top *= 2;
-                *height *= 2;
-                *o_height *= 2;
+                area->o.height *= 2;
+                area->d.height *= 2;
+                area->a.height *= 2;
+                area->a.top *= 2;
         }
-        
-        *right = *left + *width;
-        *bottom = *top + *height;
 }
 
 static int vc_sen_write_binning_mode_regs(struct vc_cam *cam)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
-        struct device *dev = &ctrl->client_sen->dev;
+        struct device *dev = vc_core_get_sen_device(cam);
         struct i2c_client *client = ctrl->client_sen;
         struct vc_mode mode = vc_core_get_mode(cam);
         int index = 0;
@@ -1621,64 +1694,74 @@ static int vc_sen_set_hmax(struct vc_cam *cam)
 int vc_sen_set_roi(struct vc_cam *cam)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
-        struct vc_desc *desc = &cam->desc;
-
+        struct vc_state *state = &cam->state;
         struct i2c_client *client = ctrl->client_sen;
         struct device *dev = &client->dev;
-        struct vc_binning *binning = vc_core_get_binning(cam);
-        int w_left, w_top, w_right, w_bottom, w_width, w_height, o_width, o_height;
+        struct vc_scaling *binning = vc_core_get_binning(cam);
+        struct vc_scaling *scaling = vc_core_get_scaling(cam);
+        struct vc_image_area area;
+        int right, bottom;
         int ret = 0;
-        vc_csr2 vc2OP_BLK_HWIDTH = (vc_csr2) { .l = 0x30d0, .m = 0x30d1 };
-        vc_csr2 vc2INFO_HWIDTH   = (vc_csr2) { .l = 0x30d2, .m = 0x30d3 };
-
-        vc_csr2 DIG_CROP_IMAGE_WIDTH  = (vc_csr2) { .l = 0x040d, .m = 0x040c };
-        vc_csr2 DIG_CROP_IMAGE_HEIGHT = (vc_csr2) { .l = 0x040f, .m = 0x040e };
 
         if (NULL == binning) {
                 vc_err(dev, "%s() Could not get binning struct!\n", __FUNCTION__);
                 return -EINVAL;
         }
-
-        vc_dbg(dev, "%s() h_factor: %d, v_factor: %d \n", __FUNCTION__,
-                binning->h_factor, binning->v_factor);
-
-        i2c_write_regs(client, binning->regs, __FUNCTION__);
-
-        vc_core_calculate_roi(cam, &w_left, &w_right, &w_width, &w_top, &w_bottom, &w_height, &o_width, &o_height);
-
-        vc_dbg(dev, "%s(): Set sensor roi: "
-                "(left-width-right: %u+%u=%u=>%u, top-height-bottom: %u+%u=%u=>%u)\n",
-                __FUNCTION__,
-                w_left, w_width, w_right, o_width,
-                w_top, w_height, w_bottom, o_height);
-
-        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.o_width, o_width, __FUNCTION__);
-        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.o_height, o_height, __FUNCTION__);
-        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.h_start, w_left, __FUNCTION__);
-        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.v_start, w_top, __FUNCTION__);
-
-        if (ctrl->flags & FLAG_PREGIUS_S) {
-                ret |= i2c_write_reg2(dev, client, &vc2OP_BLK_HWIDTH, o_width, __FUNCTION__);
-                ret |= i2c_write_reg2(dev, client, &vc2INFO_HWIDTH, o_width, __FUNCTION__);
-        } else {
-                if (MOD_ID_IMX412 == desc->mod_id) {
-                        ret |= i2c_write_reg2(dev, client, &DIG_CROP_IMAGE_WIDTH, o_width, __FUNCTION__);
-                        ret |= i2c_write_reg2(dev, client, &DIG_CROP_IMAGE_HEIGHT, o_height, __FUNCTION__);
-                } 
-                ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.h_end, w_right, __FUNCTION__);
-                ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.v_end, w_bottom, __FUNCTION__);
-                ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.w_width, w_width, __FUNCTION__);
-                ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.w_height, w_height, __FUNCTION__);
+        if (NULL == scaling) {
+                vc_err(dev, "%s() Could not get scaling struct!\n", __FUNCTION__);
+                return -EINVAL;
         }
+
+        vc_info(dev, "%s() Binning: h_factor: %d, v_factor: %d \n", __FUNCTION__,
+                binning->h_factor, binning->v_factor);
+        ret |= i2c_write_regs(client, binning->regs, __FUNCTION__);
+
+        vc_info(dev, "%s() Scaling: h_factor: %d, v_factor: %d \n", __FUNCTION__,
+                scaling->h_factor, scaling->v_factor);
+        ret |= i2c_write_regs(client, scaling->regs, __FUNCTION__);
+
+#ifdef ENABLE_ADVANCED_CONTROL
+        if (state->vt_syck_div > 0) {
+                ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.vt_syck_div, 
+                        state->vt_syck_div, __FUNCTION__);
+        }
+#endif
+
+        vc_core_calculate_image_area(cam, &area);
+        right = area.a.left + area.a.width;
+        bottom = area.a.top + area.a.height;
+
+         vc_info(dev, "%s(): analog crop: (left+width=right: %u+%u=%u, top+height=bottom: %u+%u=%u)\n",
+                __FUNCTION__, area.a.left, area.a.width, right, 
+                area.a.top, area.a.height, bottom);
+        vc_info(dev, "%s(): digital crop: (width: %u, height: %u)\n",
+                __FUNCTION__, area.d.width, area.d.height);
+        vc_info(dev, "%s(): scaling: mode: %u, scale: %u, numerator: %u\n", 
+                __FUNCTION__, state->scaling_mode, state->scale, ctrl->scale_numerator);
+        vc_info(dev, "%s(): output crop: (width: %u, height: %u)\n",
+                __FUNCTION__, area.o.width,  area.o.height);
+
+        // Analog Crop
+        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.h_start, area.a.left, __FUNCTION__);
+        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.v_start, area.a.top, __FUNCTION__);
+        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.w_width, area.a.width, __FUNCTION__);
+        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.w_height, area.a.height, __FUNCTION__);
+        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.h_end, right, __FUNCTION__);
+        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.v_end, bottom, __FUNCTION__);
+        // Digital Crop
+        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.d_width, area.d.width, __FUNCTION__);
+        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.d_height, area.d.height, __FUNCTION__);
+        // scaling
+        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.scale, state->scale, __FUNCTION__);
+        // Output Crop
+        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.o_width, area.o.width, __FUNCTION__);
+        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.o_height, area.o.height, __FUNCTION__);
+
         ret |= vc_sen_write_binning_mode_regs(cam);
         ret |= vc_sen_set_hmax(cam);
 
         if (ret) {
-                vc_err(dev, "%s(): Couldn't set sensor roi: "
-                        "(left-width-right: %u+%u=%u=>%u, top-height-bottom: %u+%u=%u=>%u)\n",
-                        __FUNCTION__,
-                        w_left, w_width, w_right, o_width,
-                        w_top, w_height, w_bottom, o_height);
+                vc_err(dev, "%s(): Couldn't set image area!\n", __FUNCTION__);
                 return ret;
         }
 
@@ -1853,7 +1936,7 @@ int vc_sen_set_blacklevel(struct vc_cam *cam, __u32 blacklevel_rel)
         __u32 blacklevel_max = vc_core_get_blacklevel(cam, num_lanes, format, binning).max;
         __u32 blacklevel_abs = (__u32)DIV_ROUND_CLOSEST((blacklevel_rel * blacklevel_max), 100000);
 
-        vc_notice(dev, "%s(): Set sensor black level: %u (%u/%u)\n", __FUNCTION__, 
+        vc_info(dev, "%s(): Set sensor black level: %u (%u/%u)\n", __FUNCTION__, 
                 blacklevel_rel, blacklevel_abs, blacklevel_max);
 
         ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.blacklevel, blacklevel_abs, __FUNCTION__);
@@ -1872,7 +1955,7 @@ int vc_sen_start_stream(struct vc_cam *cam)
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
         struct i2c_client *client_mod = ctrl->client_mod;
-        struct device *dev = &ctrl->client_sen->dev;
+        struct device *dev = vc_core_get_sen_device(cam);
         int reset = 0;
         int ret = 0;
 
@@ -1918,7 +2001,7 @@ int vc_sen_stop_stream(struct vc_cam *cam)
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
         struct i2c_client *client_mod = ctrl->client_mod;
-        struct device *dev = &ctrl->client_sen->dev;
+        struct device *dev = vc_core_get_sen_device(cam);
         int ret = 0;
 
         vc_notice(dev, "%s(): Stop streaming\n", __FUNCTION__);
@@ -1943,20 +2026,8 @@ EXPORT_SYMBOL(vc_sen_stop_stream);
 static __u32 vc_core_calculate_period_1H(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
-        int binning_index = 0;
-        __u8 index = 0;
-
-        // TODO: bad code style -> refactoring
-        binning_index = (ctrl->flags & FLAG_USE_BINNING_INDEX) ? binning : 0;
-
-        for (index = 0; index <= MAX_VC_MODES; index++) {
-                struct vc_mode *mode = &ctrl->mode[index];
-                if (mode->num_lanes == num_lanes && mode->format == format && (binning_index == ctrl->mode[index].binning)) {
-                        return ((__u64)mode->hmax * 1000000000) / ctrl->clk_pixel;
-                }
-        }
-
-        return 0;
+        __u32 hmax = vc_core_get_hmax(cam, num_lanes, format, binning);
+        return ((__u64)hmax * 1000000000) / ctrl->clk_pixel;
 }
 
 __u32 vc_core_get_time_per_line_ns(struct vc_cam *cam)
@@ -1971,13 +2042,13 @@ int vc_core_set_binning_mode(struct vc_cam *cam, int mode)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
-        struct i2c_client *client = ctrl->client_sen;
-        struct device *dev = &client->dev;
+        struct device *dev = vc_core_get_sen_device(cam);
 
-        vc_notice(dev, "%s(): Set binning mode: %u\n", __FUNCTION__, mode);
+        vc_info(dev, "%s(): Set binning mode: %u\n", __FUNCTION__, mode);
 
-        if (mode > ctrl->max_binning_modes_used) {
-                vc_err(dev, "%s(): Couldn't set binning mode (max supported modes: %d)\n", __FUNCTION__, ctrl->max_binning_modes_used);
+        if (mode > ctrl->max_supported_binning_modes) {
+                vc_err(dev, "%s(): Couldn't set binning mode (max supported modes: %d)\n", 
+                        __FUNCTION__, ctrl->max_supported_binning_modes);
                 return -1;
         }
 
@@ -1988,19 +2059,60 @@ int vc_core_set_binning_mode(struct vc_cam *cam, int mode)
 }
 EXPORT_SYMBOL(vc_core_set_binning_mode);
 
-static void vc_core_calculate_vmax(struct vc_cam *cam, __u32 period_1H_ns)
+int vc_core_set_scaling_mode(struct vc_cam *cam, int mode)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
-        struct device *dev = &ctrl->client_sen->dev;
+        struct device *dev = vc_core_get_sen_device(cam);
+
+        vc_info(dev, "%s(): Set scaling mode: %u\n", __FUNCTION__, mode);
+
+        if (mode > ctrl->max_supported_scaling_modes) {
+                vc_err(dev, "%s(): Couldn't set scaling mode (max supported modes: %d)\n", 
+                        __FUNCTION__, ctrl->max_supported_scaling_modes);
+                return -1;
+        }
+
+        state->scaling_mode = mode;
+        vc_core_update_controls(cam);
+
+        return 0;
+}
+
+EXPORT_SYMBOL(vc_core_set_scaling_mode);
+
+int vc_core_set_scale(struct vc_cam *cam, int scale)
+{
+        struct vc_ctrl *ctrl = &cam->ctrl;
+        struct vc_state *state = &cam->state;
+        struct device *dev = vc_core_get_sen_device(cam);
+
+        if (scale >= ctrl->scale_numerator) {
+                state->scale = scale;
+        }
+
+        vc_info(dev, "%s(): Set scale: %u/%u\n", __FUNCTION__, ctrl->scale_numerator, scale);
+        
+        vc_core_update_controls(cam);
+
+        return 0;
+}
+EXPORT_SYMBOL(vc_core_set_scale);
+
+static void vc_core_calculate_vmax(struct vc_cam *cam, __u32 period_1H_ns)
+{
+        struct vc_state *state = &cam->state;
+        struct device *dev = vc_core_get_sen_device(cam);
         __u8 num_lanes = state->num_lanes;
         __u8 format = vc_core_mbus_code_to_format(state->format_code);
         __u8 binning = state->binning_mode;
-        __u32 height = state->frame.height;
+        struct vc_image_area area;
         __u64 frametime_ns;
         __u64 frametime_1H;
 
-        state->vmax = vc_core_get_optimized_vmax(cam, num_lanes, format, binning, height);
+        vc_core_calculate_image_area(cam, &area);
+
+        state->vmax = vc_core_get_optimized_vmax(cam, num_lanes, format, binning, area.a.height);
         // Lower the frame rate if the frame rate setting requires it.
         if (state->framerate > 0) {
                 frametime_ns = 1000000000000 / state->framerate;
@@ -2085,7 +2197,7 @@ static void vc_calculate_exposure(struct vc_cam *cam, __u32 exposure_us)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
-        struct device *dev = &ctrl->client_sen->dev;
+        struct device *dev = vc_core_get_sen_device(cam);
         __u8 num_lanes = state->num_lanes;
         __u8 format = vc_core_mbus_code_to_format(state->format_code);
         __u8 binning = state->binning_mode;
@@ -2119,7 +2231,7 @@ static void vc_calculate_trig_exposure(struct vc_cam *cam, __u32 exposure_us)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
-        struct device *dev = &ctrl->client_sen->dev;
+        struct device *dev = vc_core_get_sen_device(cam);
         __u8 num_lanes = state->num_lanes;
         __u8 format = vc_core_mbus_code_to_format(state->format_code);
         __u8 binning = state->binning_mode;
@@ -2194,7 +2306,7 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
                 case REG_TRIGGER_SELF:	
                         vc_calculate_trig_exposure(cam, exposure_us);
                         ret |= vc_mod_write_exposure(client_mod, state->exposure_cnt);
-                        // NOTE for FLAG_TRIGGER_SELF
+                        // NOTE: for FLAG_TRIGGER_SELF
                         // - Changing retrigger from bigger to smaller values leads to a hang up of the camera. 
                         // - Changing exposure isn't applied sometimes
                         if (!state->streaming || ctrl->flags & FLAG_TRIGGER_SELF_V2) {

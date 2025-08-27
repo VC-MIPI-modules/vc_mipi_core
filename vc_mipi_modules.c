@@ -36,13 +36,13 @@
                 .blacklevel = {.min = 0, .max = blacklevel_max,  .def = blacklevel_def }, \
                 .retrigger_min = _retrigger_min };
 
-#define BINNING_MODE_REGS(_mode, ...) \
+#define MODE_BINNING_REGS(_mode, ...) \
         if (MAX_VC_MODES > _mode) { \
                 do { \
                         const struct vc_reg _binning_mode_regs [] = { __VA_ARGS__ }; \
                         int vrs = 0; \
                         vrs = sizeof(_binning_mode_regs) / sizeof(vc_reg); \
-                                if (MAX_BINNING_MODE_REGS > vrs) { \
+                                if (MAX_VC_MODE_BINNING_REGS > vrs) { \
                                         memcpy(&ctrl->mode[_mode].binning_mode_regs, _binning_mode_regs, sizeof(_binning_mode_regs)); \
                                 } \
                 } while (0); \
@@ -61,40 +61,43 @@ int vc_mod_is_color_sensor(struct vc_desc *desc)
 
 static void vc_init_ctrl(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
-        ctrl->exposure                  = (vc_control) { .min =   1, .max = 100000000, .def =  10000 };
-        ctrl->framerate                 = (vc_control) { .min =   0, .max =   1000000, .def =      0 };
+        ctrl->exposure                    = (vc_control) { .min =   1, .max = 100000000, .def =  10000 };
+        ctrl->framerate                   = (vc_control) { .min =   0, .max =   1000000, .def =      0 };
+  
+        ctrl->csr.sen.mode                = (vc_csr2) { .l = desc->csr_mode, .m = 0x0000 };
+  
+        ctrl->csr.sen.mode_standby        = 0x00; 
+        ctrl->csr.sen.mode_operating      = 0x01;
+          
+        ctrl->csr.sen.shs.l               = desc->csr_exposure_l;
+        ctrl->csr.sen.shs.m               = desc->csr_exposure_m;
+        ctrl->csr.sen.shs.h               = desc->csr_exposure_h;
+        ctrl->csr.sen.shs.u               = 0;
+         
+        ctrl->csr.sen.again.l             = desc->csr_gain_l;
+        ctrl->csr.sen.again.m             = desc->csr_gain_h;
+ 
+        ctrl->csr.sen.h_start.l           = desc->csr_h_start_l;
+        ctrl->csr.sen.h_start.m           = desc->csr_h_start_h;
+        ctrl->csr.sen.v_start.l           = desc->csr_v_start_l;
+        ctrl->csr.sen.v_start.m           = desc->csr_v_start_h;
+        ctrl->csr.sen.h_end.l             = desc->csr_h_end_l;
+        ctrl->csr.sen.h_end.m             = desc->csr_h_end_h;
+        ctrl->csr.sen.v_end.l             = desc->csr_v_end_l;
+        ctrl->csr.sen.v_end.m             = desc->csr_v_end_h;
+        ctrl->csr.sen.o_width.l           = desc->csr_o_width_l;
+        ctrl->csr.sen.o_width.m           = desc->csr_o_width_h;
+        ctrl->csr.sen.o_height.l          = desc->csr_o_height_l;
+        ctrl->csr.sen.o_height.m          = desc->csr_o_height_h;
+  
+        ctrl->frame.left                  = 0;
+        ctrl->frame.top                   = 0;
+  
+        ctrl->clk_ext_trigger             = desc->clk_ext_trigger;
+        ctrl->clk_pixel                   = desc->clk_pixel;
 
-        ctrl->csr.sen.mode              = (vc_csr2) { .l = desc->csr_mode, .m = 0x0000 };
-
-        ctrl->csr.sen.mode_standby      = 0x00; 
-        ctrl->csr.sen.mode_operating    = 0x01;
-        
-        ctrl->csr.sen.shs.l             = desc->csr_exposure_l;
-        ctrl->csr.sen.shs.m             = desc->csr_exposure_m;
-        ctrl->csr.sen.shs.h             = desc->csr_exposure_h;
-        ctrl->csr.sen.shs.u             = 0;
-        
-        ctrl->csr.sen.again.l            = desc->csr_gain_l;
-        ctrl->csr.sen.again.m            = desc->csr_gain_h;
-
-        ctrl->csr.sen.h_start.l         = desc->csr_h_start_l;
-        ctrl->csr.sen.h_start.m         = desc->csr_h_start_h;
-        ctrl->csr.sen.v_start.l         = desc->csr_v_start_l;
-        ctrl->csr.sen.v_start.m         = desc->csr_v_start_h;
-        ctrl->csr.sen.h_end.l           = desc->csr_h_end_l;
-        ctrl->csr.sen.h_end.m           = desc->csr_h_end_h;
-        ctrl->csr.sen.v_end.l           = desc->csr_v_end_l;
-        ctrl->csr.sen.v_end.m           = desc->csr_v_end_h;
-        ctrl->csr.sen.o_width.l         = desc->csr_o_width_l;
-        ctrl->csr.sen.o_width.m         = desc->csr_o_width_h;
-        ctrl->csr.sen.o_height.l        = desc->csr_o_height_l;
-        ctrl->csr.sen.o_height.m        = desc->csr_o_height_h;
-
-        ctrl->frame.left                = 0;
-        ctrl->frame.top                 = 0;
-
-        ctrl->clk_ext_trigger           = desc->clk_ext_trigger;
-        ctrl->clk_pixel                 = desc->clk_pixel;
+        ctrl->max_supported_binning_modes = 0;
+        ctrl->max_supported_scaling_modes = 0;
 }
 
 static void vc_init_ctrl_imx183_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
@@ -156,6 +159,49 @@ static void vc_init_ctrl_imx296_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
         ctrl->flags                    |= FLAG_IO_ENABLED;
         ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL | FLAG_TRIGGER_PULSEWIDTH | FLAG_TRIGGER_SELF_V2;
+}
+
+#define IMX56X_HV_MODE                  0x303c
+#define IMX56X_BINNING_MODE_DISABLE     0x00
+#define IMX56X_BINNING_MODE_ENABLE      0x10
+#define IMX56X_EAV_SELECT               0x3942
+#define IMX56X_EAV_SELECT_VALUE         0x03
+#define IMX56X_GMRWT                    0x30e2
+#define IMX56X_GMTWT                    0x30e3
+#define IMX56X_GAINDLY                  0x30e5
+#define IMX56X_GSDLY                    0x30e6
+
+static void vc_init_ctrl_imx56x_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
+{
+        AGAIN_LIN(480, 48000)
+        
+        ctrl->csr.sen.again             = (vc_csr2) { .l = 0x3514, .m = 0x3515 };
+        ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x35b4, .m = 0x35b5 };
+        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x30d4, .m = 0x30d5, .h = 0x30d6, .u = 0x0000 };
+        ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x30d8, .m = 0x30d9, .h = 0x0000, .u = 0x0000 };
+        ctrl->csr.sen.mode              = (vc_csr2) { .l = 0x3000, .m = 0x3010 };
+        ctrl->csr.sen.h_end             = (vc_csr2) { .l = 0x3128, .m = 0x3129 };
+        ctrl->csr.sen.v_end             = (vc_csr2) { .l = 0x312a, .m = 0x312b };
+        ctrl->csr.sen.mode_standby      = 0x01;
+        ctrl->csr.sen.mode_operating    = 0x00;
+
+        SCALING_START(ctrl->binnings[0], 0, 0)
+                { IMX56X_HV_MODE, IMX56X_BINNING_MODE_DISABLE },
+                { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
+        SCALING_END(ctrl->binnings[0])
+        SCALING_START(ctrl->binnings[1], 2, 2)
+                { IMX56X_HV_MODE, IMX56X_BINNING_MODE_ENABLE },
+                { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
+        SCALING_END(ctrl->binnings[1])
+        ctrl->max_supported_binning_modes = 1;
+
+        ctrl->flags                     = FLAG_EXPOSURE_SONY;
+        ctrl->flags                    |= FLAG_PREGIUS_S;
+        ctrl->flags                    |= FLAG_USE_BINNING_INDEX;
+        ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
+        ctrl->flags                    |= FLAG_IO_ENABLED;
+        ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL | FLAG_TRIGGER_PULSEWIDTH | 
+                                          FLAG_TRIGGER_SELF | FLAG_TRIGGER_SINGLE;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -485,6 +531,10 @@ static void vc_init_ctrl_imx392(struct vc_ctrl *ctrl, struct vc_desc* desc)
 #define IMX412_BINNING_TYPE_EXT_EN     0x3f42
 #define IMX412_BINNING_TYPE_H_EXT      0x3f43
 #define IMX412_BLACKLEVEL_ENABLE       0x3030
+#define IMX412_SCALING_MODE            0x0401
+#define IMX412_SCALING_MODE_DISABLE    0x00
+#define IMX412_SCALING_MODE_H          0x01
+#define IMX412_SCALING_MODE_H_V        0x02
 
 static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
@@ -493,10 +543,20 @@ static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
         AGAIN_REC(978, 13400, 1024, 1024)
         DGAIN(0x0fff, 12000);
 
+#ifdef ENABLE_ADVANCED_CONTROL
+        ctrl->csr.sen.vt_syck_div       = (vc_csr2) { .l = 0x0303, .m = 0x0000 };
+#endif
         ctrl->csr.sen.dgain             = (vc_csr2) { .l = 0x020f, .m = 0x020e };
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x3033, .m = 0x3032 };
+        // ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x0343, .m = 0x0342, .h = 0x0000, .u = 0x0000 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x0341, .m = 0x0340, .h = 0x0000, .u = 0x0000 };
         ctrl->csr.sen.shs               = (vc_csr4) { .l = 0x0203, .m = 0x0202, .h = 0x0000, .u = 0x0000 };
+        ctrl->csr.sen.d_left            = (vc_csr2) { .l = 0x0409, .m = 0x0408 };
+        ctrl->csr.sen.d_top             = (vc_csr2) { .l = 0x040b, .m = 0x040a };
+        ctrl->csr.sen.d_width           = (vc_csr2) { .l = 0x040d, .m = 0x040c };
+        ctrl->csr.sen.d_height          = (vc_csr2) { .l = 0x040f, .m = 0x040e };
+        ctrl->csr.sen.scale             = (vc_csr2) { .l = 0x0405, .m = 0x0404 };
+        ctrl->csr.sen.group_hold        = (vc_csr2) { .l = 0x0104, .m = 0x0000 };
 
         FRAME(0, 0, 4032, 3040)
         // All read out      binning    hmax  vmax      vmax    vmax  blkl  blkl  retrigger
@@ -518,45 +578,56 @@ static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->clk_ext_trigger           = 27000000;
         ctrl->clk_pixel                 = 27000000;
 
-        BINNING_START(ctrl->binnings[0], 0, 0)
+        SCALING_START(ctrl->binnings[0], 0, 0)
                 { IMX412_BINNING_MODE, IMX412_BINNING_MODE_DISABLE },
                 { IMX412_BINNING_TYPE, 0x11 },
                 { IMX412_BLACKLEVEL_ENABLE, 0x01 }
-        BINNING_END(ctrl->binnings[0])
-        BINNING_START(ctrl->binnings[1], 1, 2)
+        SCALING_END(ctrl->binnings[0])
+        SCALING_START(ctrl->binnings[1], 1, 2)
                 { IMX412_BINNING_MODE, IMX412_BINNING_MODE_ENABLE },
                 { IMX412_BINNING_WEIGHTING, IMX412_BINNING_WEIGHTING_SUM },
                 { IMX412_BINNING_TYPE, 0x12 },
                 { IMX412_BLACKLEVEL_ENABLE, 0x01 }
-        BINNING_END(ctrl->binnings[1])
-        BINNING_START(ctrl->binnings[2], 2, 2)
+        SCALING_END(ctrl->binnings[1])
+        SCALING_START(ctrl->binnings[2], 2, 2)
                 { IMX412_BINNING_MODE, IMX412_BINNING_MODE_ENABLE },
                 { IMX412_BINNING_WEIGHTING, IMX412_BINNING_WEIGHTING_SUM },
                 { IMX412_BINNING_TYPE, 0x22 },
                 { IMX412_BLACKLEVEL_ENABLE, 0x01 }
-        BINNING_END(ctrl->binnings[2])
-        BINNING_START(ctrl->binnings[3], 4, 2)
+        SCALING_END(ctrl->binnings[2])
+        SCALING_START(ctrl->binnings[3], 4, 2)
                 { IMX412_BINNING_MODE, IMX412_BINNING_MODE_ENABLE },
                 { IMX412_BINNING_WEIGHTING, IMX412_BINNING_WEIGHTING_SUM },
                 { IMX412_BINNING_TYPE, 0x42 },
                 { IMX412_BLACKLEVEL_ENABLE, 0x01 }
-        BINNING_END(ctrl->binnings[3])
-        BINNING_START(ctrl->binnings[4], 8, 2)
+        SCALING_END(ctrl->binnings[3])
+        SCALING_START(ctrl->binnings[4], 8, 2)
                 { IMX412_BINNING_MODE, IMX412_BINNING_MODE_ENABLE },
                 { IMX412_BINNING_WEIGHTING, IMX412_BINNING_WEIGHTING_SUM },
                 { IMX412_BINNING_TYPE, 0x82 },
                 { IMX412_BLACKLEVEL_ENABLE, 0x01 }
-        BINNING_END(ctrl->binnings[4])
-        BINNING_START(ctrl->binnings[5], 16, 2)
+        SCALING_END(ctrl->binnings[4])
+        SCALING_START(ctrl->binnings[5], 16, 2)
                 { IMX412_BINNING_MODE, IMX412_BINNING_MODE_ENABLE },
                 { IMX412_BINNING_WEIGHTING, IMX412_BINNING_WEIGHTING_SUM },
                 { IMX412_BINNING_TYPE, 0x02 },
                 { IMX412_BINNING_TYPE_EXT_EN, 0x01 },
                 { IMX412_BINNING_TYPE_H_EXT, 0x01 },
                 { IMX412_BLACKLEVEL_ENABLE, 0x01 }
-        BINNING_END(ctrl->binnings[5])
+        SCALING_END(ctrl->binnings[5])
+        ctrl->max_supported_binning_modes = 5;
 
-        ctrl->max_binning_modes_used = 5;
+        SCALING_START(ctrl->scalings[0], 0, 0)
+                { IMX412_SCALING_MODE, IMX412_SCALING_MODE_DISABLE }
+        SCALING_END(ctrl->scalings[0])
+        SCALING_START(ctrl->scalings[1], 1, 0)
+                { IMX412_SCALING_MODE, IMX412_SCALING_MODE_H }
+        SCALING_END(ctrl->scalings[1])
+        SCALING_START(ctrl->scalings[2], 1, 1)
+                { IMX412_SCALING_MODE, IMX412_SCALING_MODE_H_V }
+        SCALING_END(ctrl->scalings[2])
+        ctrl->max_supported_scaling_modes = 2;
+        ctrl->scale_numerator = 16;
 
         ctrl->flags                     = FLAG_RESET_ALWAYS;
         ctrl->flags                    |= FLAG_EXPOSURE_NORMAL;
@@ -617,37 +688,13 @@ static void vc_init_ctrl_imx462(struct vc_ctrl *ctrl, struct vc_desc *desc)
 //  Settings for IMX565 (Rev.03)
 //  12.4 MegaPixel Pregius S
 
-#define IMX56X_HV_MODE                  0x303c
-#define IMX56X_BINNING_MODE_DISABLE     0x00
-#define IMX56X_BINNING_MODE_ENABLE      0x10
-#define IMX56X_VBLK_HWIDTH_UPPER        0x30d1
-#define IMX56X_VBLK_HWIDTH_LOWER        0x30d0
-#define IMX56X_FINFO_HWIDTH_UPPER       0x30d3
-#define IMX56X_FINFO_HWIDTH_LOWER       0x30d2
-#define IMX56X_EAV_SELECT               0x3942
-#define IMX56X_EAV_SELECT_VALUE         0x03
-
-#define IMX56X_GMRWT                    0x30e2
-#define IMX56X_GMTWT                    0x30e3
-#define IMX56X_GAINDLY                  0x30e5
-#define IMX56X_GSDLY                    0x30e6
-
 static void vc_init_ctrl_imx565(struct vc_ctrl *ctrl, struct vc_desc *desc)
 {
         INIT_MESSAGE("IMX565")
 
-        AGAIN_LIN(480, 48000)
-        
-        ctrl->csr.sen.again             = (vc_csr2) { .l = 0x3514, .m = 0x3515 };
-        ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x35b4, .m = 0x35b5 };
-        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x30d4, .m = 0x30d5, .h = 0x30d6, .u = 0x0000 };
-        ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x30d8, .m = 0x30d9, .h = 0x0000, .u = 0x0000 };
-        ctrl->csr.sen.mode              = (vc_csr2) { .l = 0x3000, .m = 0x3010 };
-        ctrl->csr.sen.mode_standby      = 0x01;
-        ctrl->csr.sen.mode_operating    = 0x00;
+        vc_init_ctrl_imx56x_base(ctrl, desc);
 
         FRAME(0, 0, 4128, 3000)
-
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
         //                      mode           min       max    def   max   def
         MODE( 0, 2, FORMAT_RAW08, 0,    1070,   18, 0xffffff, 0xc2c,  255,   15,   2410776)
@@ -666,32 +713,12 @@ static void vc_init_ctrl_imx565(struct vc_ctrl *ctrl, struct vc_desc *desc)
         MODE(11, 4, FORMAT_RAW12, 1,     425,  40, 0xffffff, 0x654, 4095,  240,    493884)
         
         // Special registers for binning mode
-        BINNING_MODE_REGS(  6, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x1c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x0c } );
-        BINNING_MODE_REGS(  7, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x18 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x0c } );
-        BINNING_MODE_REGS(  8, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x14 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x08 } );
-        BINNING_MODE_REGS(  9, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x30 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x18 } );
-        BINNING_MODE_REGS( 10, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x28 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x14 } );
-        BINNING_MODE_REGS( 11, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x24 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 } );
-
-        BINNING_START(ctrl->binnings[0], 0, 0)
-                { IMX56X_HV_MODE, IMX56X_BINNING_MODE_DISABLE },
-                { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
-        BINNING_END(ctrl->binnings[0])
-
-        BINNING_START(ctrl->binnings[1], 2, 2)
-                { IMX56X_HV_MODE, IMX56X_BINNING_MODE_ENABLE },
-                { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
-        BINNING_END(ctrl->binnings[1])
-
-        ctrl->max_binning_modes_used = 1;
-
-        ctrl->flags                     = FLAG_EXPOSURE_SONY;
-        ctrl->flags                    |= FLAG_PREGIUS_S;
-        ctrl->flags                    |= FLAG_USE_BINNING_INDEX;
-        ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
-        ctrl->flags                    |= FLAG_IO_ENABLED;
-        ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL | FLAG_TRIGGER_PULSEWIDTH | 
-                                          FLAG_TRIGGER_SELF | FLAG_TRIGGER_SINGLE;
+        MODE_BINNING_REGS(  6, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x1c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x0c } );
+        MODE_BINNING_REGS(  7, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x18 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x0c } );
+        MODE_BINNING_REGS(  8, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x14 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x08 } );
+        MODE_BINNING_REGS(  9, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x30 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x18 } );
+        MODE_BINNING_REGS( 10, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x28 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x14 } );
+        MODE_BINNING_REGS( 11, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x24 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 } );
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -702,17 +729,9 @@ static void vc_init_ctrl_imx566(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         INIT_MESSAGE("IMX566")
 
-        AGAIN_LIN(480, 48000)
-
-        ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x35b4, .m = 0x35b5 };
-        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x30d4, .m = 0x30d5, .h = 0x30d6, .u = 0x0000 };
-        ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x30d8, .m = 0x30d9, .h = 0x0000, .u = 0x0000 };
-        ctrl->csr.sen.mode              = (vc_csr2) { .l = 0x3000, .m = 0x3010 };
-        ctrl->csr.sen.mode_standby      = 0x01;
-        ctrl->csr.sen.mode_operating    = 0x00;
+        vc_init_ctrl_imx56x_base(ctrl, desc);
 
         FRAME(0, 0, 2848, 2848)
-
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
         //                      mode           min       max    def   max   def
         MODE( 0, 2, FORMAT_RAW08, 0,     752,   24, 0xffffff, 0xb98,  255,   15,   1612278)
@@ -731,32 +750,12 @@ static void vc_init_ctrl_imx566(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE(11, 4, FORMAT_RAW12, 1,     307,   52, 0xffffff, 0x614, 4095,  240,    336690)
 
         // Special registers for binning mode
-        BINNING_MODE_REGS(  6, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x24 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 } );
-        BINNING_MODE_REGS(  7, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x20 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 } );
-        BINNING_MODE_REGS(  8, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x1c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x0c } );
-        BINNING_MODE_REGS(  9, { IMX56X_GMRWT, 0x0c }, { IMX56X_GMTWT, 0x44 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x1c } );
-        BINNING_MODE_REGS( 10, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x38 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x18 } );
-        BINNING_MODE_REGS( 11, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x30 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x14 } );
-
-        BINNING_START(ctrl->binnings[0], 0, 0)
-                { IMX56X_HV_MODE, IMX56X_BINNING_MODE_DISABLE },
-                { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
-        BINNING_END(ctrl->binnings[0])
-
-        BINNING_START(ctrl->binnings[1], 2, 2)
-                { IMX56X_HV_MODE, IMX56X_BINNING_MODE_ENABLE },
-                { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
-        BINNING_END(ctrl->binnings[1])
-
-        ctrl->max_binning_modes_used = 1;
-
-        ctrl->flags                     = FLAG_EXPOSURE_SONY;
-        ctrl->flags                    |= FLAG_PREGIUS_S;
-        ctrl->flags                    |= FLAG_USE_BINNING_INDEX;
-        ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
-        ctrl->flags                    |= FLAG_IO_ENABLED;
-        ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL | FLAG_TRIGGER_PULSEWIDTH |
-                                          FLAG_TRIGGER_SELF | FLAG_TRIGGER_SINGLE;
+        MODE_BINNING_REGS(  6, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x24 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 } );
+        MODE_BINNING_REGS(  7, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x20 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 } );
+        MODE_BINNING_REGS(  8, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x1c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x0c } );
+        MODE_BINNING_REGS(  9, { IMX56X_GMRWT, 0x0c }, { IMX56X_GMTWT, 0x44 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x1c } );
+        MODE_BINNING_REGS( 10, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x38 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x18 } );
+        MODE_BINNING_REGS( 11, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x30 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x14 } );
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -767,17 +766,9 @@ static void vc_init_ctrl_imx567(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         INIT_MESSAGE("IMX567")
 
-        AGAIN_LIN(480, 48000)
-
-        ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x35b4, .m = 0x35b5 };
-        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x30d4, .m = 0x30d5, .h = 0x30d6, .u = 0x0000 };
-        ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x30d8, .m = 0x30d9, .h = 0x0000, .u = 0x0000 };
-        ctrl->csr.sen.mode              = (vc_csr2) { .l = 0x3000, .m = 0x3010 };
-        ctrl->csr.sen.mode_standby      = 0x01;
-        ctrl->csr.sen.mode_operating    = 0x00;
+        vc_init_ctrl_imx56x_base(ctrl, desc);
 
         FRAME(0, 0, 2464, 2064)
-
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
         //                      mode           min       max    def   max   def
         MODE( 0, 2, FORMAT_RAW08, 0,     656,   26, 0xffffff, 0x88a,  255,   15,   1058562)
@@ -796,32 +787,12 @@ static void vc_init_ctrl_imx567(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE(11, 4, FORMAT_RAW12, 1,     271,   60, 0xffffff, 0x498, 4095,  240,    224640)
 
         // Special registers for binning mode
-        BINNING_MODE_REGS(  6, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x2c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x14 } );
-        BINNING_MODE_REGS(  7, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x24 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 } );
-        BINNING_MODE_REGS(  8, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x20 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 } );
-        BINNING_MODE_REGS(  9, { IMX56X_GMRWT, 0x0c }, { IMX56X_GMTWT, 0x4c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x20 } );
-        BINNING_MODE_REGS( 10, { IMX56X_GMRWT, 0x0c }, { IMX56X_GMTWT, 0x40 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x1c } );
-        BINNING_MODE_REGS( 11, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x38 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x18 } );
-
-        BINNING_START(ctrl->binnings[0], 0, 0)
-                { IMX56X_HV_MODE, IMX56X_BINNING_MODE_DISABLE },
-                { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
-        BINNING_END(ctrl->binnings[0])
-
-        BINNING_START(ctrl->binnings[1], 2, 2)
-                { IMX56X_HV_MODE, IMX56X_BINNING_MODE_ENABLE },
-                { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
-        BINNING_END(ctrl->binnings[1])
-
-        ctrl->max_binning_modes_used = 1;
-
-        ctrl->flags                     = FLAG_EXPOSURE_SONY;
-        ctrl->flags                    |= FLAG_PREGIUS_S;
-        ctrl->flags                    |= FLAG_USE_BINNING_INDEX;
-        ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
-        ctrl->flags                    |= FLAG_IO_ENABLED;
-        ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL | FLAG_TRIGGER_PULSEWIDTH |
-                                          FLAG_TRIGGER_SELF | FLAG_TRIGGER_SINGLE;
+        MODE_BINNING_REGS(  6, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x2c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x14 } );
+        MODE_BINNING_REGS(  7, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x24 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 } );
+        MODE_BINNING_REGS(  8, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x20 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 } );
+        MODE_BINNING_REGS(  9, { IMX56X_GMRWT, 0x0c }, { IMX56X_GMTWT, 0x4c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x20 } );
+        MODE_BINNING_REGS( 10, { IMX56X_GMRWT, 0x0c }, { IMX56X_GMTWT, 0x40 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x1c } );
+        MODE_BINNING_REGS( 11, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x38 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x18 } );
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -837,14 +808,7 @@ static void vc_init_ctrl_imx568(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         INIT_MESSAGE("IMX568")
 
-        AGAIN_LIN(480, 48000)
-
-        ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x35b4, .m = 0x35b5 };
-        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x30d4, .m = 0x30d5, .h = 0x30d6, .u = 0x0000 };
-        ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x30d8, .m = 0x30d9, .h = 0x0000, .u = 0x0000 };
-        ctrl->csr.sen.mode              = (vc_csr2) { .l = 0x3000, .m = 0x3010 };
-        ctrl->csr.sen.mode_standby      = 0x01;
-        ctrl->csr.sen.mode_operating    = 0x00;
+        vc_init_ctrl_imx56x_base(ctrl, desc);
 
         FRAME(0, 0, 2464, 2064)
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
@@ -865,32 +829,12 @@ static void vc_init_ctrl_imx568(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE(11, 4, FORMAT_RAW12, 1,     271,   60, 0xffffff, 0x498, 4095,  240,    224640)
 
         // Special registers for binning mode
-        BINNING_MODE_REGS(  6, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x2c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x14 } );
-        BINNING_MODE_REGS(  7, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x24 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 } );
-        BINNING_MODE_REGS(  8, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x20 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 } );
-        BINNING_MODE_REGS(  9, { IMX56X_GMRWT, 0x0c }, { IMX56X_GMTWT, 0x4c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x20 } );
-        BINNING_MODE_REGS( 10, { IMX56X_GMRWT, 0x0c }, { IMX56X_GMTWT, 0x40 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x1c } );
-        BINNING_MODE_REGS( 11, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x38 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x18 } );
-
-        BINNING_START(ctrl->binnings[0], 0, 0)
-                { IMX56X_HV_MODE, IMX56X_BINNING_MODE_DISABLE },
-                { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
-        BINNING_END(ctrl->binnings[0])
-
-        BINNING_START(ctrl->binnings[1], 2, 2)
-                { IMX56X_HV_MODE, IMX56X_BINNING_MODE_ENABLE },
-                { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
-        BINNING_END(ctrl->binnings[1])
-
-        ctrl->max_binning_modes_used = 1;
-
-        ctrl->flags                     = FLAG_EXPOSURE_SONY;
-        ctrl->flags                    |= FLAG_PREGIUS_S;
-        ctrl->flags                    |= FLAG_USE_BINNING_INDEX;
-        ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
-        ctrl->flags                    |= FLAG_IO_ENABLED;
-        ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL | FLAG_TRIGGER_PULSEWIDTH |
-                                          FLAG_TRIGGER_SELF | FLAG_TRIGGER_SINGLE;
+        MODE_BINNING_REGS(  6, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x2c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x14 } );
+        MODE_BINNING_REGS(  7, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x24 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 } );
+        MODE_BINNING_REGS(  8, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x20 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 } );
+        MODE_BINNING_REGS(  9, { IMX56X_GMRWT, 0x0c }, { IMX56X_GMTWT, 0x4c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x20 } );
+        MODE_BINNING_REGS( 10, { IMX56X_GMRWT, 0x0c }, { IMX56X_GMTWT, 0x40 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x1c } );
+        MODE_BINNING_REGS( 11, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x38 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x18 } );
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -901,16 +845,9 @@ static void vc_init_ctrl_imx900(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         INIT_MESSAGE("IMX900")
 
-        AGAIN_LIN(480, 48000)
-
-        ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x35b4, .m = 0x35b5 };
-        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x30d4, .m = 0x30d5, .h = 0x30d6, .u = 0x0000 };
-        ctrl->csr.sen.mode              = (vc_csr2) { .l = 0x3000, .m = 0x3010 };
-        ctrl->csr.sen.mode_standby      = 0x01;
-        ctrl->csr.sen.mode_operating    = 0x00;
+        vc_init_ctrl_imx56x_base(ctrl, desc);
 
         FRAME(0, 0, 2048, 1536)
-
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
         //                      mode           min       max    def   max   def
         MODE( 0, 2, FORMAT_RAW08, 0,     460,   99, 0xffffff, 1816,   255,  15,    563060)
@@ -919,19 +856,6 @@ static void vc_init_ctrl_imx900(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE( 3, 4, FORMAT_RAW08, 0,     338,   99, 0xffffff, 1816,   255,  15,    413694)
         MODE( 4, 4, FORMAT_RAW10, 0,     364,   99, 0xffffff, 1816,  1023,  60,    444204)
         MODE( 5, 4, FORMAT_RAW12, 0,     610,   99, 0xffffff, 1816,  4095, 240,    727542)
-
-        ctrl->flags                     = FLAG_EXPOSURE_SONY;
-
-        ctrl->flags                    |= FLAG_PREGIUS_S;
-        ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
-        ctrl->flags                    |= FLAG_IO_ENABLED;
-        ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL | FLAG_TRIGGER_PULSEWIDTH |
-                                          FLAG_TRIGGER_SELF | FLAG_TRIGGER_SINGLE;
-
-        BINNING_START(ctrl->binnings[0], 0, 0)
-                { IMX56X_HV_MODE, IMX56X_BINNING_MODE_DISABLE },
-                { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
-        BINNING_END(ctrl->binnings[0])
 }
 
 // ------------------------------------------------------------------------------------------------
