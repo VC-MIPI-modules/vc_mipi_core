@@ -1,9 +1,13 @@
-# Connect MIPI modules
+# Mechanical setup
+
+## General information
 
 ![Unplug](./hardware_images/unplug.png)
 
 > [!WARNING]  
 > Always disconnect all cables before connecting or disconnecting the MIPI module!
+
+## Connecting the FPC cables to the MIPI modules
 
 The ends of the MIPI module connector cable is marked with the hardware to connect to. Open the socket connectors first by raising their lid, insert the cable and press their lid back when mounted correctly. You should then not be able to pull the cable out.
 
@@ -23,11 +27,6 @@ The socket type is also not protected against wrong orientation, so compare your
 
 *Watch the orientation of the cable (left: bad, right: good)*
 
-There may be a dust prevention sticker at the socket named CAMERA at the raspberryPi, remove it first. Like at the sensor module, open the lid first, insert the cable to be orthogonally fixed after shutting the lid. Also check the orthogonality here and correct it if the cable is angled!
-
-![Mipi connection](./hardware_images/orientation_cpu_15pins.png)
-
-*Connect the cable to the CAMERA socket at the raspberry Pi equally (left: bad, right: good)*
 
 > [!WARNING]  
 > Do not connect other devices to the I²C bus named VC, since it can affect the communication between the camera sensor and the driver!
@@ -36,3 +35,30 @@ There may be a dust prevention sticker at the socket named CAMERA at the raspber
 > 
 > disable_touchscreen=1
 > Don't connect the SDA/SCK of the 7 inch display since this would connect the I²C bus VC from the socket named DISPLAY with the I²C bus ARM at the pinout!
+
+## Connecting the FPC cables to the carrier boards
+
+This chapter shows the correct connection of the VC MIPI FPC cables to several supported carrier boards.
+
+There may be a dust prevention sticker on the camera socket on your carrier board, remove it first. Like at the sensor module, open the lid first, insert the cable to be orthogonally fixed after shutting the lid. Also check the orthogonality here and correct it if the cable is angled!
+
+### Raspberry Pi 3B+
+
+![Mipi connection](./hardware_images/orientation_cpu_15pins.png)
+
+*Connect the cable to the CAMERA socket at the raspberry Pi equally (left: bad, right: good)*
+
+### Raspberry Pi 4B
+
+![Mipi connection](./hardware_images/connector_raspi4b.jpeg)
+
+### Raspberry Pi 5
+
+![Mipi connection](./hardware_images/connectors_raspi5.jpeg)
+
+### Raspberry Pi CM4
+
+![Mipi connection](./hardware_images/connectors_CM4.jpeg)
+
+
+
