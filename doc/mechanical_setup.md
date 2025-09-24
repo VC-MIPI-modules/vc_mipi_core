@@ -27,6 +27,7 @@ The socket type is also not protected against wrong orientation, so compare your
 
 *Watch the orientation of the cable (left: bad, right: good)*
 
+## Raspberry Pi i2c bus conflict
 
 > [!WARNING]  
 > Do not connect other devices to the I²C bus named VC, since it can affect the communication between the camera sensor and the driver!
@@ -50,15 +51,29 @@ There may be a dust prevention sticker on the camera socket on your carrier boar
 
 ### Raspberry Pi 4B
 
-![Mipi connection](./hardware_images/connector_raspi4b.jpeg)
+![Mipi connection](./hardware_images/connector_raspi4b.jpg)
 
 ### Raspberry Pi 5
 
-![Mipi connection](./hardware_images/connectors_raspi5.jpeg)
+![Mipi connection](./hardware_images/connectors_raspi5.jpg)
 
 ### Raspberry Pi CM4
 
-![Mipi connection](./hardware_images/connectors_CM4.jpeg)
+![Mipi connection](./hardware_images/connectors_CM4.jpg)
 
+### Nvidia Jetson nano developer kit
 
+![Mipi connection](./hardware_images/connectors_jetson_nano_dev_kit.jpg)
+
+### Nvidia Orin nano developer kit
+
+![Mipi connection](./hardware_images/connectors_orin_nano_dev_kit.jpg)
+
+### Auvidea JNX30
+
+![Mipi connection](./hardware_images/connectors_jnx30.jpg)
+
+### Auvidea JNX42
+
+![Mipi connection](./hardware_images/connectors_jnx42.jpg)
 
