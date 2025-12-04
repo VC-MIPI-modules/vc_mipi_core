@@ -1,13 +1,14 @@
 #ifndef _VC_MIPI_CORE_H
 #define _VC_MIPI_CORE_H
 
-#define VERSION "0.6.10"
+#define VERSION "0.6.8"
 
 #define ENABLE_ADVANCED_CONTROL
 
 #include <linux/types.h>
 #include <linux/i2c.h>
 #include <linux/videodev2.h>
+#include <linux/build_bug.h>
 
 extern int debug;
 
@@ -56,6 +57,7 @@ extern int debug;
 
 #define MAX_VC_MODES                    16
 #define MAX_BINNING_MODE_REGS           16
+#define MAX_BINNING_REGS                32
 
 #define MAX_MBUS_CODES                  5
 #define MAX_VC_DESC_MODES               24
@@ -197,7 +199,7 @@ typedef struct vc_binning {
         bool use_mod_mode;
         __u8 h_factor;
         __u8 v_factor;
-        struct vc_reg regs[8];
+        struct vc_reg regs[MAX_BINNING_REGS];
 } vc_binning;
 
 
@@ -205,7 +207,8 @@ typedef struct vc_binning {
         binning = (vc_binning) { .use_mod_mode = false, .h_factor = h, .v_factor = v }; \
         { const struct vc_reg regs [] = {
 #define BINNING_END(binning) \
-        , {0, 0} }; memcpy(&binning.regs, regs, sizeof(regs)); }
+        , {0, 0} }; \
+        memcpy((binning).regs, regs, sizeof(regs)); }
 #define BINNING(binning, h, v) \
         binning = (vc_binning) { .use_mod_mode = true, .h_factor = h, .v_factor = v }; 
 

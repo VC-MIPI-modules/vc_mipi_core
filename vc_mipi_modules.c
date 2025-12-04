@@ -54,10 +54,10 @@ int vc_mod_is_color_sensor(struct vc_desc *desc)
         if (desc->sen_type[0] != 0) {
                 __u32 len = strnlen(desc->sen_type, 16);
                 if (len > 0 && len < 17) {
-                        return *(desc->sen_type + len - 1) == 'C';
+                        return 1;
                 }
         }
-        return 0;
+        return 1;
 }
 EXPORT_SYMBOL(vc_mod_is_color_sensor);
 
@@ -1084,8 +1084,40 @@ static void vc_init_ctrl_ov7251(struct vc_ctrl *ctrl, struct vc_desc* desc)
 //  Settings for OV9281 (Rev.03)
 //  1.02 MegaPixel OmniPixel3-GS
 
+#define OV9281_SCONTROL 0x3778
+#define OV9281_VERTICAL_BINNING 0x3837
+
+#define OV9281_TIMING_FORMAT1 0x3820
+#define OV9281_TIMING_FORMAT2 0x3821
+#define OV9281_X_INCREMENT 0x3814
+#define OV9281_Y_INCREMENT 0x3815
+
+#define OV9281_TIMING_FORMAT2_BINNING_2X 0x01
+#define OV9281_TIMING_FORMAT2_BINNING_4X 0x02
+#define OV9281_SCONTROL_BINNING_ON 0x10
+
+/* Windowing registers (table 4-2) */
+#define OV9281_H_START_H    0x3800  /* HS[11:8] horizontal start */
+#define OV9281_H_START_L    0x3801  /* HS[7:0]  horizontal start */
+#define OV9281_V_START_H    0x3802  /* VS[11:8] vertical start */
+#define OV9281_V_START_L    0x3803  /* VS[7:0]  vertical start */
+#define OV9281_H_END_H      0x3804  /* HE[11:8] horizontal end */
+#define OV9281_H_END_L      0x3805  /* HE[7:0]  horizontal end */
+#define OV9281_V_END_H      0x3806  /* VE[11:8] vertical end */
+#define OV9281_V_END_L      0x3807  /* VE[7:0]  vertical end */
+#define OV9281_H_OUTPUT_H   0x3808  /* output width [11:8] */
+#define OV9281_H_OUTPUT_L   0x3809  /* output width [7:0] */
+#define OV9281_V_OUTPUT_H   0x380a  /* output height [11:8] */
+#define OV9281_V_OUTPUT_L   0x380b  /* output height [7:0] */
+#define OV9281_HTS_H        0x380c  /* HTS (line length) [11:8] */
+
+/* Read-out control registers */
+#define OV9281_READOUT_CTRL_07 0x4507
+#define OV9281_READOUT_CTRL_09 0x4509
 static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
+
+
         INIT_MESSAGE("OV9281")
         
         ctrl->exposure                  = (vc_control) { .min = 146, .max =    595000, .def =  10000 };
@@ -1095,6 +1127,7 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->csr.sen.v_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
         ctrl->csr.sen.flash_duration	= (vc_csr4) { .l = 0x3928, .m = 0x3927, .h = 0x3926, .u = 0x3925 };
         ctrl->csr.sen.flash_offset      = (vc_csr4) { .l = 0x3924, .m = 0x3923, .h = 0x3922, .u = 0x0000 };
+        ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x380c, .m = 0x380d, .h = 0x0000, .u = 0x0000 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x380f, .m = 0x380e, .h = 0x0000, .u = 0x0000 };
         // NOTE: Modules rom table contains swapped address assigment.
         ctrl->csr.sen.again             = (vc_csr2) { .l = 0x3509, .m = 0x0000 };
@@ -1102,8 +1135,84 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
         FRAME(0, 0, 1280, 800)
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
         //                      mode           min       max    def   max   def
-        MODE( 0, 2, FORMAT_RAW08, 0,     227,   16,   0xffff,   910,    0,    0,         0)
-        MODE( 1, 2, FORMAT_RAW10, 0,     227,   16,   0xffff,   910,    0,    0,         0)
+        MODE( 0, 2, FORMAT_RAW08, 0,     227,    16,   0xffff,   910,    0,    0,         0)
+        MODE( 1, 2, FORMAT_RAW10, 0,     227,    16,   0xffff,   910,    0,    0,         0)
+        MODE( 2, 2, FORMAT_RAW08, 1,     227,    16,   0xffff,   910,    0,    0,         0)
+        MODE( 3, 2, FORMAT_RAW10, 1,     227,    16,   0xffff,   910,    0,    0,         0)
+        // MODE( 4, 2, FORMAT_RAW08, 2,     227,    16,   0xffff,   910,    0,    0,         0)
+        // MODE( 5, 2, FORMAT_RAW10, 2,     227,    16,   0xffff,   910,    0,    0,         0)
+
+           
+
+        BINNING_START(ctrl->binnings[0], 0, 0)
+                { OV9281_X_INCREMENT, 0x11 },
+                { OV9281_Y_INCREMENT, 0x11 },
+                { OV9281_SCONTROL, 0x00 },
+                { OV9281_TIMING_FORMAT1, 0x40 },
+                { OV9281_TIMING_FORMAT2, 0x00 },
+                { OV9281_READOUT_CTRL_07, 0x00 },
+                { OV9281_READOUT_CTRL_09, 0x00 },
+                { OV9281_VERTICAL_BINNING, 0x00 },
+                { OV9281_H_START_H, 0x00 },
+                { OV9281_H_START_L, 0x00 },
+                { OV9281_V_START_H, 0x00 },
+                { OV9281_V_START_L, 0x00 },
+                { OV9281_H_END_H, 0x05 },   // End 1295
+                { OV9281_H_END_L, 0x0f },
+                { OV9281_V_END_H, 0x03 },
+                { OV9281_V_END_L, 0x2f },
+                { OV9281_H_OUTPUT_H, 0x05 },
+                { OV9281_H_OUTPUT_L, 0x00 },
+                { OV9281_V_OUTPUT_H, 0x03 },
+                { OV9281_V_OUTPUT_L, 0x20 },
+                { OV9281_HTS_H, 0x02 }
+        BINNING_END(ctrl->binnings[0])
+
+        BINNING_START(ctrl->binnings[1], 2, 2)
+                { OV9281_X_INCREMENT, 0x22 },
+                { OV9281_Y_INCREMENT, 0x22 },
+                { OV9281_SCONTROL, OV9281_SCONTROL_BINNING_ON },
+                { OV9281_TIMING_FORMAT1, 0x00 },
+                { OV9281_TIMING_FORMAT2, OV9281_TIMING_FORMAT2_BINNING_2X },
+                { OV9281_VERTICAL_BINNING, 0x0f },
+                { OV9281_H_START_H, 0x00 },
+                { OV9281_H_START_L, 0x00 },
+                { OV9281_V_START_H, 0x00 },
+                { OV9281_V_START_L, 0x00 },
+                { OV9281_H_END_H, 0x05 },   // End 1295
+                { OV9281_H_END_L, 0x0f },
+                { OV9281_V_END_H, 0x03 },
+                { OV9281_V_END_L, 0x2f },
+                { OV9281_H_OUTPUT_H, 0x02 },  // Width: 640
+                { OV9281_H_OUTPUT_L, 0x80 },
+                { OV9281_V_OUTPUT_H, 0x01 },  // Height: 400
+                { OV9281_V_OUTPUT_L, 0x90 },
+                { OV9281_HTS_H, 0x02 }
+        BINNING_END(ctrl->binnings[1])
+
+        // BINNING_START(ctrl->binnings[2], 4, 4)
+        //         { OV9281_X_INCREMENT, 0x44 },
+        //         { OV9281_Y_INCREMENT, 0x44 },
+        //         { OV9281_SCONTROL, OV9281_SCONTROL_BINNING_ON },
+        //         { OV9281_TIMING_FORMAT1, 0x00 },
+        //         { OV9281_TIMING_FORMAT2, OV9281_TIMING_FORMAT2_BINNING_4X },
+        //         { OV9281_VERTICAL_BINNING, 0x0f },
+        //         { OV9281_H_START_H, 0x00 },
+        //         { OV9281_H_START_L, 0x00 },   // Start 0
+        //         { OV9281_V_START_H, 0x00 },
+        //         { OV9281_V_START_L, 0x28 },   // Start 40
+        //         { OV9281_H_END_H, 0x05 },     // End 1295
+        //         { OV9281_H_END_L, 0x0f },
+        //         { OV9281_V_END_H, 0x03 },
+        //         { OV9281_V_END_L, 0xcb },
+        //         { OV9281_H_OUTPUT_H, 0x01 },  // Width: 320
+        //         { OV9281_H_OUTPUT_L, 0x40 },
+        //         { OV9281_V_OUTPUT_H, 0x00 },  // Height: 200
+        //         { OV9281_V_OUTPUT_L, 0xca },
+        //         { OV9281_HTS_H, 0x02 }
+        // BINNING_END(ctrl->binnings[2])
+
+        ctrl->max_binning_modes_used = 1;
 
         ctrl->clk_ext_trigger           = 25000000;
         ctrl->clk_pixel                 = 25000000;
