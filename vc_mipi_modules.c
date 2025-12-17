@@ -1104,6 +1104,15 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
         //                      mode           min       max    def   max   def
         MODE( 0, 2, FORMAT_RAW08, 0,     227,   16,   0xffff,   910,    0,    0,         0)
         MODE( 1, 2, FORMAT_RAW10, 0,     227,   16,   0xffff,   910,    0,    0,         0)
+        MODE( 2, 2, FORMAT_RAW10, 0,     227,   16,   0xffff,   910,    0,    0,         0) // Triggered mode
+        MODE( 3, 2, FORMAT_RAW08, 0,     227,   16,   0xffff,   910,    0,    0,         0) // Triggered mode
+        MODE( 4, 2, FORMAT_RAW10, 0,     227,   16,   0xffff,   910,    0,    0,         0) // Sync mode
+        MODE( 5, 2, FORMAT_RAW08, 0,     227,   16,   0xffff,   910,    0,    0,         0) // Sync mode
+        MODE( 6, 2, FORMAT_RAW10, 1,     227,   16,   0xffff,   910,    0,    0,         0)
+
+
+        BINNING(ctrl->binnings[0], 0, 0)
+        BINNING(ctrl->binnings[1], 4, 4)
 
         ctrl->clk_ext_trigger           = 25000000;
         ctrl->clk_pixel                 = 25000000;

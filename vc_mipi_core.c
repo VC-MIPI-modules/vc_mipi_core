@@ -78,11 +78,14 @@ void vc_core_calculate_roi(struct vc_cam *cam, __u32 *w_left, __u32 *w_right, __
         __u32 *w_top, __u32 *w_bottom, __u32 *w_height, __u32 *o_width, __u32 *o_height);
 static int vc_sen_read_image_size(struct vc_ctrl *ctrl, struct vc_frame *size);
 struct vc_binning *vc_core_get_binning(struct vc_cam *cam);
+static __u8 vc_core_mbus_code_to_format(__u32 code);
 int i2c_write_regs(struct i2c_client *client, const struct vc_reg *regs, const char* func);
 vc_mode vc_core_get_mode_by_param(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
 __u32 vc_core_get_hmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
 vc_control vc_core_get_vmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
 static void vc_core_calculate_vmax(struct vc_cam *cam, __u32 period_1H_ns);
+__u32 vc_core_get_retrigger(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
+__u32 vc_core_get_optimized_vmax(struct vc_cam *cam, __u8 num_lanes,  __u8 format, __u8 binning_mode, __u32 height);
 
 vc_control vc_core_get_blacklevel(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
 int vc_mod_set_power(struct vc_cam *cam, int on);
@@ -1735,7 +1738,10 @@ int vc_sen_set_hmax(struct vc_cam *cam)
         __u8 num_lanes = state->num_lanes;
         __u8 format = vc_core_mbus_code_to_format(state->format_code);
         __u8 binning = state->binning_mode;
+#ifdef OVERWRITE_HMAX
         __u32 hmax = vc_core_get_hmax(cam, num_lanes, format, binning);
+#endif
+
 
 #ifdef ENABLE_ADVANCED_CONTROL
         if (cam->state.hmax_overwrite < 0) {
@@ -2065,8 +2071,8 @@ int vc_sen_start_stream(struct vc_cam *cam)
         }
         ret |= vc_sen_set_exposure(cam, cam->state.exposure);
 
-        
-        state->streaming = 1;
+
+                state->streaming = 1;
 
         return ret;
 }
@@ -2129,7 +2135,7 @@ static __u64 vc_core_calculate_exposure_1H(struct vc_cam *cam, __u8 num_lanes, _
         // Convert exposure time from µs to ns.
         exposure_ns = (__u64)(exposure_us)*1000;
         // Calculate number of lines equivalent to the exposure time without shs_min.
-        exposure_1H = exposure_ns / period_1H_ns;    
+        exposure_1H = exposure_ns / period_1H_ns;
 
         return exposure_1H;
 }
