@@ -7,8 +7,8 @@
 #include <linux/i2c.h>
 #include <linux/videodev2.h>
 
-extern int debug;
-#define level(level) if (debug >= level)
+extern int vc_debug;
+#define level(level) if (vc_debug >= level)
 #define vc_reg(dev, fmt, ...) level(6) dev_info(dev, fmt, ##__VA_ARGS__)
 #define vc_dbg(dev, fmt, ...) level(5) dev_info(dev, fmt, ##__VA_ARGS__)
 #define vc_info(dev, fmt, ...) level(4) dev_info(dev, fmt, ##__VA_ARGS__)
