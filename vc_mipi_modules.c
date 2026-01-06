@@ -1088,7 +1088,7 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         INIT_MESSAGE("OV9281")
         
-        ctrl->exposure                  = (vc_control) { .min = 146, .max =    595000, .def =  10000 };
+        ctrl->exposure                  = (vc_control) { .min = 10, .max =    595000, .def =  10000 };
         AGAIN_FRA(255, 12000)
 
         ctrl->csr.sen.h_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
@@ -1096,7 +1096,7 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->csr.sen.flash_duration	= (vc_csr4) { .l = 0x3928, .m = 0x3927, .h = 0x3926, .u = 0x3925 };
         ctrl->csr.sen.flash_offset      = (vc_csr4) { .l = 0x3924, .m = 0x3923, .h = 0x3922, .u = 0x0000 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x380f, .m = 0x380e, .h = 0x0000, .u = 0x0000 };
-        // NOTE: Modules rom table contains swapped address assigment.
+        // NOTE: Modules rom table contains swapped address assigment.                  
         ctrl->csr.sen.again             = (vc_csr2) { .l = 0x3509, .m = 0x0000 };
         
         FRAME(0, 0, 1280, 800)
@@ -1108,7 +1108,7 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE( 3, 2, FORMAT_RAW08, 0,     227,   16,   0xffff,   910,    0,    0,         0) // Triggered mode
         MODE( 4, 2, FORMAT_RAW10, 0,     227,   16,   0xffff,   910,    0,    0,         0) // Sync mode
         MODE( 5, 2, FORMAT_RAW08, 0,     227,   16,   0xffff,   910,    0,    0,         0) // Sync mode
-        MODE( 6, 2, FORMAT_RAW10, 1,     227,   16,   0xffff,   910,    0,    0,         0)
+        MODE( 6, 2, FORMAT_RAW10, 1,     227,    1,   0xffff,   260,    0,    0,         0)
 
 
         BINNING(ctrl->binnings[0], 0, 0)
@@ -1123,6 +1123,8 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->flags                     = FLAG_EXPOSURE_OMNIVISION;
         ctrl->flags                    |= FLAG_IO_ENABLED;
         ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL;
+        ctrl->flags                    |= FLAG_USE_BINNING_INDEX;
+        ctrl->max_binning_modes_used = 2;
 }
 
 
