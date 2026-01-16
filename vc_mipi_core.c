@@ -371,7 +371,7 @@ static int vc_core_get_fourcc_fmt(__u32 code, char *buf)
         return 0;
 }
 
-static __u8 vc_core_mbus_code_to_format(__u32 code)
+__u8 vc_core_mbus_code_to_format(__u32 code)
 {
         switch (code) {
         case MEDIA_BUS_FMT_Y8_1X8:
@@ -393,6 +393,7 @@ static __u8 vc_core_mbus_code_to_format(__u32 code)
         }
         return 0;
 }
+EXPORT_SYMBOL(vc_core_mbus_code_to_format);
 
 static __u32 vc_core_format_to_mbus_code(__u8 format, int is_color, int is_gbrg)
 {
