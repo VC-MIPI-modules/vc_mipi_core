@@ -76,6 +76,8 @@ void vc_core_calculate_image_area(struct vc_cam *cam, struct vc_image_area *area
 static int vc_sen_read_image_size(struct vc_ctrl *ctrl, struct vc_frame *size);
 struct vc_scaling *vc_core_get_binning(struct vc_cam *cam);
 struct vc_scaling *vc_core_get_scaling(struct vc_cam *cam);
+static __u8 vc_core_get_mode_type(struct vc_cam *cam, char* stype);
+static __u8 vc_core_find_mode(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 type, __u8 binning);
 
 
 // ------------------------------------------------------------------------------------------------
@@ -756,6 +758,31 @@ __u32 vc_core_get_num_lanes(struct vc_cam *cam)
 }
 EXPORT_SYMBOL(vc_core_get_num_lanes);
 
+__s32 vc_core_get_lane_datarate(struct vc_cam *cam)
+{
+        struct vc_desc *desc = &cam->desc;
+        struct vc_state *state = &cam->state;
+        struct device *dev = vc_core_get_sen_device(cam);
+        __u8 num_lanes = state->num_lanes;
+        __u8 format = vc_core_mbus_code_to_format(state->format_code);
+        char stype[16];
+        __u8 type = vc_core_get_mode_type(cam, stype);
+        __u8 binning = 0;
+        __u8 mode = vc_core_find_mode(cam, num_lanes, format, type, binning);
+
+        if (mode >= 0 && mode < desc->num_modes) {
+                __u32 data_rate = *(__u32*)desc->modes[mode].data_rate;
+
+                vc_info(dev, "%s(): Get lane datarate: %d bps (mode: %u)\n", __FUNCTION__, 
+                        data_rate, mode);
+                return data_rate;
+        }
+        
+        vc_err(dev, "%s(): Could not get lane datarate!\n", __FUNCTION__);
+        return 0;
+}
+EXPORT_SYMBOL(vc_core_get_lane_datarate);
+
 int vc_core_set_framerate(struct vc_cam *cam, __u32 framerate)
 {
         struct vc_state *state = &cam->state;
@@ -1186,7 +1213,41 @@ static int vc_mod_write_retrigger(struct i2c_client *client, __u32 value)
         return ret;
 }
 
-static __u8 vc_mod_find_mode(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 type, __u8 binning)
+static __u8 vc_core_get_mode_type(struct vc_cam *cam, char* stype)
+{
+        struct vc_state *state = &cam->state;
+        __u8 type = 0;
+
+        switch (state->trigger_mode) {
+        case REG_TRIGGER_DISABLE:
+        case REG_TRIGGER_STREAM_EDGE:
+        case REG_TRIGGER_STREAM_LEVEL:
+        default:
+                type = MODE_TYPE_STREAM;
+                strcpy(stype, "STREAM");
+                break;
+        case REG_TRIGGER_SYNC:
+                if (cam->ctrl.flags & FLAG_TRIGGER_SLAVE) {
+                        type = MODE_TYPE_SLAVE;
+                        strcpy(stype, "SLAVE");
+                } else {
+                        type = MODE_TYPE_STREAM;
+                        strcpy(stype, "STREAM");
+                }
+                break;
+        case REG_TRIGGER_EXTERNAL:
+        case REG_TRIGGER_PULSEWIDTH:
+        case REG_TRIGGER_SELF:
+        case REG_TRIGGER_SINGLE:
+                type = MODE_TYPE_TRIGGER;
+                strcpy(stype, "EXT.TRG");
+                break;
+        }
+
+        return type;
+}
+
+static __u8 vc_core_find_mode(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 type, __u8 binning)
 {
         struct vc_desc *desc = &cam->desc;
         struct device *dev = vc_core_get_mod_device(cam);
@@ -1203,7 +1264,8 @@ static __u8 vc_mod_find_mode(struct vc_cam *cam, __u8 num_lanes, __u8 format, __
                    mode->format == format &&
                    mode->type == type &&
                    mode->binning == binning &&
-                   data_rate > max_data_rate) {
+                   data_rate > max_data_rate) 
+                {
                         max_data_rate = data_rate;
                         mode_index = index;
                 }
@@ -1273,48 +1335,16 @@ int vc_mod_set_mode(struct vc_cam *cam, int *reset)
         struct device *dev = vc_core_get_mod_device(cam);
         __u8 num_lanes = state->num_lanes;
         __u8 format = vc_core_mbus_code_to_format(state->format_code);
+        char stype[16];
+        __u8 type = vc_core_get_mode_type(cam, stype);
         char fourcc[5];
-        char *stype;
-        __u8 type = 0;
         __u8 binning = 0;
         __u8 mode = 0;
         int ret = 0;
         bool reset_binning = false;
 
-        switch (cam->state.trigger_mode) {
-        case REG_TRIGGER_DISABLE:
-        case REG_TRIGGER_STREAM_EDGE:
-        case REG_TRIGGER_STREAM_LEVEL:
-        default:
-                type = MODE_TYPE_STREAM;
-                stype = "STREAM";
-                break;
-        case REG_TRIGGER_SYNC:
-                if (cam->ctrl.flags & FLAG_TRIGGER_SLAVE) {
-                        type = MODE_TYPE_SLAVE;
-                        stype = "SLAVE";
-                } else {
-                        type = MODE_TYPE_STREAM;
-                        stype = "STREAM";
-                }
-                break;
-        case REG_TRIGGER_EXTERNAL:
-        case REG_TRIGGER_PULSEWIDTH:
-        case REG_TRIGGER_SELF:
-        case REG_TRIGGER_SINGLE:
-                type = MODE_TYPE_TRIGGER;
-                stype = "EXT.TRG";
-                break;
-        }
-
-        if (( 0 < state->former_binning_mode ) && ( 0 == state->binning_mode) ) {
-                reset_binning = true;
-        }
-        else {
-                reset_binning = false;
-        }
-
-        mode = vc_mod_find_mode(cam, num_lanes, format, type, binning);
+        mode = vc_core_find_mode(cam, num_lanes, format, type, binning);
+        reset_binning = (state->former_binning_mode > 0) && (state->binning_mode == 0);
         if ( (mode == state->mode) && (!(ctrl->flags & FLAG_RESET_ALWAYS) && (type == MODE_TYPE_STREAM) && !reset_binning)) {
                 vc_dbg(dev, "%s(): Module mode %u need not to be set!\n", __FUNCTION__, mode);
                 *reset = 0;

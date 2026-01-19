@@ -308,6 +308,7 @@ struct vc_frame *vc_core_get_out_frame(struct vc_cam *cam);
 int vc_core_set_out_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __u32 height);
 int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number);
 __u32 vc_core_get_num_lanes(struct vc_cam *cam);
+__s32 vc_core_get_lane_datarate(struct vc_cam *cam);
 int vc_core_set_framerate(struct vc_cam *cam, __u32 framerate);
 __u32 vc_core_get_framerate(struct vc_cam *cam);
 __u32 vc_core_get_time_per_line_ns(struct vc_cam *cam);                         // Only used by NXP driver
