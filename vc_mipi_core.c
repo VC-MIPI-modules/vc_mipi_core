@@ -1736,8 +1736,8 @@ int vc_sen_set_hmax(struct vc_cam *cam)
         __u8 format = vc_core_mbus_code_to_format(state->format_code);
         __u8 binning = state->binning_mode;
         __u32 hmax = vc_core_get_hmax(cam, num_lanes, format, binning);
-
-#ifdef ENABLE_ADVANCED_CONTROL
+        
+#ifdef OVERWRITE_HMAX
         if (cam->state.hmax_overwrite < 0) {
                 return 0;
         }
@@ -1745,10 +1745,6 @@ int vc_sen_set_hmax(struct vc_cam *cam)
         {
                 return vc_sen_write_hmax(ctrl, cam->state.hmax_overwrite);
         }
-        
-#endif
-#ifdef OVERWRITE_HMAX
-        return vc_sen_write_hmax(ctrl, hmax);
 #else
         return 0;
 #endif
