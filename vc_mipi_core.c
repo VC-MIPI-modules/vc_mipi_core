@@ -2295,14 +2295,23 @@ static void vc_calculate_exposure_sony(struct vc_cam *cam, __u64 exposure_1H)
 
 static void vc_calculate_exposure_normal(struct vc_cam *cam, __u64 exposure_1H)
 {
+        struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
         __u8 num_lanes = state->num_lanes;
         __u8 format = vc_core_mbus_code_to_format(state->format_code);
         __u8 binning = state->binning_mode;
         __u32 shs_min = vc_core_get_vmax(cam, num_lanes, format, binning).min;
+        __u32 vmax_max;
+
+        // OmniVision sensors require exposure <= VTS - 25 rows for readout overhead
+        if (ctrl->flags & FLAG_EXPOSURE_OMNIVISION) {
+                vmax_max = state->vmax > 25 ? state->vmax - 25 : state->vmax;
+        } else {
+                vmax_max = state->vmax;
+        }
 
         // Is exposure time greater than shs_min and less than frame time?
-        if (shs_min <= exposure_1H && exposure_1H < state->vmax) {
+        if (shs_min <= exposure_1H && exposure_1H < vmax_max) {
                 // Yes then calculate exposure delay (shs) in between frame time.
                 // |                 VMAX (frame time)             ---> |
                 // +------------------------+---------------------------+
@@ -2317,11 +2326,18 @@ static void vc_calculate_exposure_normal(struct vc_cam *cam, __u64 exposure_1H)
                 state->shs = shs_min;
 
         } else {
+                // Exposure longer than available frame time
                 // |                 VMAX (frame time)                   ---> |
                 // +----------------------------------------------------------+
                 // |                                       exposure time ---> |
-                state->vmax = exposure_1H;
-                state->shs = exposure_1H;
+                if (ctrl->flags & FLAG_EXPOSURE_OMNIVISION) {
+                        // For OmniVision: extend vmax to fit exposure + 25 rows overhead
+                        state->vmax = exposure_1H + 25;
+                        state->shs = exposure_1H;
+                } else {
+                        state->vmax = exposure_1H;
+                        state->shs = exposure_1H;
+                }
         }
 }
 
