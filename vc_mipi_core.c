@@ -1793,6 +1793,12 @@ int vc_sen_set_roi(struct vc_cam *cam)
         if (ctrl->flags & FLAG_PREGIUS_S) {
                 ret |= i2c_write_reg2(dev, client, &vc2OP_BLK_HWIDTH, o_width, __FUNCTION__);
                 ret |= i2c_write_reg2(dev, client, &vc2INFO_HWIDTH, o_width, __FUNCTION__);
+        } else if (ctrl->flags & FLAG_EXPOSURE_OMNIVISION) {
+                // OmniVision sensors use X_OUTPUT_SIZE/Y_OUTPUT_SIZE (o_width/o_height) for output dimensions
+                // X_ADDR_END/Y_ADDR_END should remain at array boundaries (not output size)
+                // These are set to 0x0000 in sensor init to use sensor defaults
+                ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.w_width, w_width, __FUNCTION__);
+                ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.w_height, w_height, __FUNCTION__);
         } else {
                 if (MOD_ID_IMX412 == desc->mod_id) {
                         ret |= i2c_write_reg2(dev, client, &DIG_CROP_IMAGE_WIDTH, o_width, __FUNCTION__);
@@ -2457,9 +2463,10 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
         
         } else if (ctrl->flags & FLAG_EXPOSURE_OMNIVISION) {
                 __u32 duration = (((__u64)exposure_us)*ctrl->flash_factor)/1000000;
+                // OmniVision sensors use exposure registers with low 4 bits as fraction
 
                 vc_calculate_exposure(cam, exposure_us);
-                ret |= vc_sen_write_shs(ctrl, state->shs);
+                ret |= vc_sen_write_shs(ctrl, state->shs << 4);
                 ret |= vc_sen_write_vmax(ctrl, state->vmax);
                 ret |= vc_sen_write_flash_duration(ctrl, duration);
                 ret |= vc_sen_write_flash_offset(ctrl, ctrl->flash_toffset);
