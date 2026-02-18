@@ -1,7 +1,7 @@
 #ifndef _VC_MIPI_MODULES_H
 #define _VC_MIPI_MODULES_H
 
-#define VERSION "0.6.9"
+#define VERSION "0.6.10"
 
 #include "vc_mipi_core.h"
 extern int debug;
