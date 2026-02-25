@@ -2032,6 +2032,7 @@ int vc_sen_start_stream(struct vc_cam *cam)
         struct device *dev = &ctrl->client_sen->dev;
         int reset = 0;
         int ret = 0;
+        __u8 io_mode = state->io_mode;
 
         ret  = vc_mod_set_mode(cam, &reset);
         ret |= vc_sen_set_roi(cam);
@@ -2058,7 +2059,11 @@ int vc_sen_start_stream(struct vc_cam *cam)
                 ret |= vc_mod_write_trigger_mode(client_mod, REG_TRIGGER_DISABLE);
 
         } else {
-                ret |= vc_mod_write_io_mode(client_mod, state->io_mode);
+                if ((ctrl->flags & FLAG_EXPOSURE_OMNIVISION) && vc_mod_is_trigger_enabled(cam)) {
+                        io_mode |= REG_IO_XTRIG_ENABLE;
+                }
+
+                ret |= vc_mod_write_io_mode(client_mod, io_mode);
                 ret |= vc_mod_write_trigger_mode(client_mod, state->trigger_mode);
         }
         if (!ret && reset) {
@@ -2143,7 +2148,7 @@ __u32 vc_core_get_time_per_line_ns(struct vc_cam *cam)
         __u8 format = vc_core_mbus_code_to_format(state->format_code);
         __u8 binning = state->binning_mode;
         __u64 hmax = cam->state.hmax_overwrite > 0 ? cam->state.hmax_overwrite :  vc_core_get_hmax(cam, num_lanes, format, binning);
-;
+
         return (hmax * 1000000000) / ctrl->clk_pixel;
 }
 EXPORT_SYMBOL(vc_core_get_time_per_line_ns);
