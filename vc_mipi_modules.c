@@ -1102,11 +1102,11 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
         FRAME(0, 0, 1280, 800)
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
         //                      mode           min       max    def   max   def
-        MODE( 0, 2, FORMAT_RAW08, 0,     728,   16,   0xffff,   910,    0,    0,         0)
-        MODE( 1, 2, FORMAT_RAW10, 0,     728,   16,   0xffff,   910,    0,    0,         0)
+        MODE( 0, 2, FORMAT_RAW08, 0,     364,   16,   0xffff,   910,    0,    0,         0)
+        MODE( 1, 2, FORMAT_RAW10, 0,     364,   16,   0xffff,   910,    0,    0,         0)
 
-        ctrl->clk_ext_trigger           = 80000000;
-        ctrl->clk_pixel                 = 80000000;
+        ctrl->clk_ext_trigger           = 40000000;
+        ctrl->clk_pixel                 = 40000000;
 
         ctrl->flash_factor              = 1758241 >> 4; // (1000 << 4)/9100 >> 4
         ctrl->flash_toffset             = 4;
