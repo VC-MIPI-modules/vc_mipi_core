@@ -1,7 +1,7 @@
 #ifndef _VC_MIPI_CORE_H
 #define _VC_MIPI_CORE_H
 
-#define VERSION "0.6.10"
+#define VERSION "0.6.11"
 
 #define ENABLE_ADVANCED_CONTROL
 
@@ -186,7 +186,7 @@ typedef struct vc_mode {
         __u8       num_lanes;
         __u8       format;
         __u8       binning;
-        __u32      hmax;
+        vc_control hmax;
         vc_control vmax;
         vc_control blacklevel;
         __u32      retrigger_min;

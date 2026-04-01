@@ -31,7 +31,15 @@ int debug = 3;
 #define MODE(index, lanes, format, binning, _hmax, vmax_min, vmax_max, vmax_def, \
         blacklevel_max, blacklevel_def, _retrigger_min) \
         ctrl->mode[index] = (vc_mode) { lanes, format, binning, \
-                .hmax = _hmax,  \
+                .hmax = {.min = _hmax, .max = _hmax, .def = _hmax},  \
+                .vmax = {.min = vmax_min, .max = vmax_max, .def = vmax_def}, \
+                .blacklevel = {.min = 0, .max = blacklevel_max,  .def = blacklevel_def }, \
+                .retrigger_min = _retrigger_min };
+
+#define MODE_HMAX(index, lanes, format, binning, hmax_min, hmax_max, hmax_def, vmax_min, vmax_max, vmax_def, \
+        blacklevel_max, blacklevel_def, _retrigger_min) \
+        ctrl->mode[index] = (vc_mode) { lanes, format, binning, \
+                .hmax = {.min = hmax_min, .max = hmax_max, .def = hmax_def},  \
                 .vmax = {.min = vmax_min, .max = vmax_max, .def = vmax_def}, \
                 .blacklevel = {.min = 0, .max = blacklevel_max,  .def = blacklevel_def }, \
                 .retrigger_min = _retrigger_min };
@@ -416,13 +424,13 @@ static void vc_init_ctrl_imx296(struct vc_ctrl *ctrl, struct vc_desc* desc)
         vc_init_ctrl_imx296_base(ctrl, desc);
 
         FRAME(0, 0, 1440, 1080)
-        // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
-        //                      mode           min       max    def   max   def
-        MODE( 0, 1, FORMAT_RAW10, 0,   0x44c,    5,  0xfffff, 0x45e, 1023,   60,    883008)
+        // All read out      binning  hmax    hmax     hmax  vmax      vmax   vmax  blkl  blkl  retrigger
+        //                      mode   min      max      def   min       max    def   max   def
+        MODE_HMAX( 0, 1, FORMAT_RAW10, 0,   0x44c, 0xffff, 0x44c,    5,  0xfffff, 0x45e, 1023,   60,    883008)
         // binning
          // NOTE: Since the data sheet values of hmax (0x42e) and vmax (0x23e) does not lead 
          // to correct exposure time and frame rate, the values are optimized.
-        MODE( 1, 1, FORMAT_RAW10, 1,   0x44c,    5,  0xfffff, 0x22f, 1023,   60,    883008)
+        MODE_HMAX( 1, 1, FORMAT_RAW10, 1,   0x44c, 0xffff, 0x44c,    5,  0xfffff, 0x22f, 1023,   60,    883008)
 
         TOUT(ctrl->tout, \
                 0x0226,  /* toutsel_reg */ \
@@ -455,9 +463,9 @@ static void vc_init_ctrl_imx297(struct vc_ctrl *ctrl, struct vc_desc* desc)
         vc_init_ctrl_imx296_base(ctrl, desc);
 
         FRAME(0, 0, 704, 540) // 720 isn't divisible by 32
-        // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
-        //                      mode           min       max    def   max   def
-        MODE( 0, 1, FORMAT_RAW10, 0,   0x42e,    5,  0xfffff, 0x23e,  511,   60,    883008)
+        // All read out      binning  hmax    hmax     hmax  vmax      vmax   vmax  blkl  blkl  retrigger
+        //                      mode   min      max      def   min       max    def   max   def
+        MODE_HMAX( 0, 1, FORMAT_RAW10, 0,   0x42e, 0xffff, 0x42e,    5,  0xfffff, 0x23e,  511,   60,    883008)
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -923,22 +931,22 @@ static void vc_init_ctrl_imx568(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->csr.sen.mode_operating    = 0x00;
 
         FRAME(0, 0, 2464, 2064)
-        // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
-        //                      mode           min       max    def   max   def
-        MODE( 0, 2, FORMAT_RAW08, 0,     656,   26, 0xffffff, 0x88a,  255,   15,   1058562)
-        MODE( 1, 2, FORMAT_RAW10, 0,     810,   22, 0xffffff, 0x884, 1023,   60,   1273590)
-        MODE( 2, 2, FORMAT_RAW12, 0,     965,   20, 0xffffff, 0x880, 4095,  240,   1514484)
-        MODE( 3, 4, FORMAT_RAW08, 0,     370,   46, 0xffffff, 0x8a8,  255,   15,    553716)
-        MODE( 4, 4, FORMAT_RAW10, 0,     425,   38, 0xffffff, 0x89e, 1023,   60,    673812)
-        MODE( 5, 4, FORMAT_RAW12, 0,     502,   34, 0xffffff, 0x896, 4095,  240,    793692)
+        // All read out      binning  hmax    hmax     hmax  vmax      vmax   vmax  blkl  blkl  retrigger
+        //                      mode   min      max      def   min       max    def   max   def
+        MODE_HMAX( 0, 2, FORMAT_RAW08, 0,     656, 0xffff,   656,   26, 0xffffff, 0x88a,  255,   15,   1058562)
+        MODE_HMAX( 1, 2, FORMAT_RAW10, 0,     810, 0xffff,   810,   22, 0xffffff, 0x884, 1023,   60,   1273590)
+        MODE_HMAX( 2, 2, FORMAT_RAW12, 0,     965, 0xffff,   965,   20, 0xffffff, 0x880, 4095,  240,   1514484)
+        MODE_HMAX( 3, 4, FORMAT_RAW08, 0,     348, 0xffff,   370,   46, 0xffffff, 0x8a8,  255,   15,    553716)
+        MODE_HMAX( 4, 4, FORMAT_RAW10, 0,     425, 0xffff,   425,   38, 0xffffff, 0x89e, 1023,   60,    673812)
+        MODE_HMAX( 5, 4, FORMAT_RAW12, 0,     502, 0xffff,   502,   34, 0xffffff, 0x896, 4095,  240,    793692)
 
         // Binning
-        MODE( 6, 2, FORMAT_RAW08, 1,     348,   48, 0xffffff, 0x488,  255,   15,    285444)
-        MODE( 7, 2, FORMAT_RAW10, 1,     425,   40, 0xffffff, 0x47c, 1023,   60,    346140)
-        MODE( 8, 2, FORMAT_RAW12, 1,     503,   36, 0xffffff, 0x474, 4095,  240,    406782)
-        MODE( 9, 4, FORMAT_RAW08, 1,     194,   80, 0xffffff, 0x4b8,  255,   15,    164214)
-        MODE(10, 4, FORMAT_RAW10, 1,     232,   68, 0xffffff, 0x4a8, 1023,   60,    194346)
-        MODE(11, 4, FORMAT_RAW12, 1,     271,   60, 0xffffff, 0x498, 4095,  240,    224640)
+        MODE_HMAX( 6, 2, FORMAT_RAW08, 1,     348, 0xffff,   348,   48, 0xffffff, 0x488,  255,   15,    285444)
+        MODE_HMAX( 7, 2, FORMAT_RAW10, 1,     425, 0xffff,   425,   40, 0xffffff, 0x47c, 1023,   60,    346140)
+        MODE_HMAX( 8, 2, FORMAT_RAW12, 1,     503, 0xffff,   503,   36, 0xffffff, 0x474, 4095,  240,    406782)
+        MODE_HMAX( 9, 4, FORMAT_RAW08, 1,     194, 0xffff,   194,   80, 0xffffff, 0x4b8,  255,   15,    164214)
+        MODE_HMAX(10, 4, FORMAT_RAW10, 1,     232, 0xffff,   232,   68, 0xffffff, 0x4a8, 1023,   60,    194346)
+        MODE_HMAX(11, 4, FORMAT_RAW12, 1,     271, 0xffff,   271,   60, 0xffffff, 0x498, 4095,  240,    224640)
 
         // Special registers for binning mode
         BINNING_MODE_REGS(  6, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x2c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x14 } );
@@ -1024,12 +1032,12 @@ static void vc_init_ctrl_imx900(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
         //                      mode           min       max    def   max   def
-        MODE( 0, 2, FORMAT_RAW08, 0,     460,   99, 0xffffff, 1816,   255,  15,    563060)
-        MODE( 1, 2, FORMAT_RAW10, 0,     564,   99, 0xffffff, 1816,  1023,  60,    688284)
-        MODE( 2, 2, FORMAT_RAW12, 0,     667,   99, 0xffffff, 1816,  4095, 240,    795528)
-        MODE( 3, 4, FORMAT_RAW08, 0,     338,   99, 0xffffff, 1816,   255,  15,    413694)
-        MODE( 4, 4, FORMAT_RAW10, 0,     364,   99, 0xffffff, 1816,  1023,  60,    444204)
-        MODE( 5, 4, FORMAT_RAW12, 0,     610,   99, 0xffffff, 1816,  4095, 240,    727542)
+        MODE( 0, 2, FORMAT_RAW08, 0,     460,   99, 0xffffff, 1546,   255,  15,    563060)
+        MODE( 1, 2, FORMAT_RAW10, 0,     564,   99, 0xffffff, 1546,  1023,  60,    688284)
+        MODE( 2, 2, FORMAT_RAW12, 0,     667,   99, 0xffffff, 1546,  4095, 240,    795528)
+        MODE( 3, 4, FORMAT_RAW08, 0,     338,   99, 0xffffff, 1546,   255,  15,    413694)
+        MODE( 4, 4, FORMAT_RAW10, 0,     364,   99, 0xffffff, 1546,  1023,  60,    444204)
+        MODE( 5, 4, FORMAT_RAW12, 0,     610,   99, 0xffffff, 1546,  4095, 240,    727542)
 
         ctrl->flags                     = FLAG_EXPOSURE_SONY;
 

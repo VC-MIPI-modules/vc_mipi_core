@@ -14,7 +14,7 @@
 
 int debug = 3;
 #define READ_DEFAULT_REG_VALUES
-// #define OVERWRITE_HMAX
+#define OVERWRITE_HMAX
 
 #define MOD_REG_RESET            0x0100 // register  0 [0x0100]: reset and init register (R/W)
 #define MOD_REG_STATUS           0x0101 // register  1 [0x0101]: status (R)
@@ -554,7 +554,7 @@ __u32 vc_core_get_hmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 bin
                 vc_notice(vc_core_get_sen_device(cam), "%s(): Using HMAX overwrite: %d\n", __FUNCTION__, cam->state.hmax_overwrite);
         }
 #endif
-        return vc_core_get_mode_by_param(cam, num_lanes, format, binning).hmax;
+        return vc_core_get_mode_by_param(cam, num_lanes, format, binning).hmax.def;
 }
 
 vc_control vc_core_get_vmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
@@ -1745,6 +1745,7 @@ int vc_sen_set_hmax(struct vc_cam *cam)
         {
                 return vc_sen_write_hmax(ctrl, cam->state.hmax_overwrite);
         }
+        return 0;
 #else
         return 0;
 #endif
@@ -2117,7 +2118,7 @@ static __u32 vc_core_calculate_period_1H(struct vc_cam *cam, __u8 num_lanes, __u
         for (index = 0; index <= MAX_VC_MODES; index++) {
                 struct vc_mode *mode = &ctrl->mode[index];
                 if (mode->num_lanes == num_lanes && mode->format == format && (binning_index == ctrl->mode[index].binning)) {
-                        return ((__u64)mode->hmax * 1000000000) / ctrl->clk_pixel;
+                        return ((__u64)mode->hmax.def * 1000000000) / ctrl->clk_pixel;
                 }
         }
 
