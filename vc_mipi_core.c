@@ -610,7 +610,7 @@ static __u32 vc_core_get_default_format(struct vc_cam *cam)
         struct vc_desc *desc = &cam->desc;
         struct vc_ctrl *ctrl = &cam->ctrl;
         __u8 format = desc->modes[0].format;
-        int is_color = vc_mod_is_color_sensor(desc);
+        int is_color = cam->force_color_mode ? 1 : vc_mod_is_color_sensor(desc);
         int is_bgrg = ctrl->flags & FLAG_FORMAT_GBRG;
         return vc_core_format_to_mbus_code(format, is_color, is_bgrg);
 }
@@ -620,7 +620,7 @@ void vc_core_update_mbus_codes(struct vc_cam *cam)
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_desc *desc = &cam->desc;
         struct device *dev = vc_core_get_sen_device(cam);
-        int is_color = vc_mod_is_color_sensor(desc);
+        int is_color = cam->force_color_mode ? 1 : vc_mod_is_color_sensor(desc);
         int is_bgrg = ctrl->flags & FLAG_FORMAT_GBRG;
         int modeIx, codeIx;
 
@@ -1711,7 +1711,7 @@ int vc_sen_write_binning_mode_regs(struct vc_cam *cam)
                                 iTmp++;
                         }
 
-                        ret |= i2c_write_reg4(dev, client, &ctrl->csr.sen.hmax, ctrl->mode[mode_index].hmax, __FUNCTION__);
+                        ret |= i2c_write_reg4(dev, client, &ctrl->csr.sen.hmax, ctrl->mode[mode_index].hmax.def, __FUNCTION__);
                 }
         }
 
@@ -2469,8 +2469,18 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
 
                         if(state->vmax_overwrite > 0) 
                         {
+                                // Re-calculate SHS against the overwrite VMAX so exposure
+                                // is correct at the forced frame rate instead of always
+                                // writing SHS=0 (which maximizes exposure).
+                                if (state->vmax_overwrite > state->vmax) {
+                                        // Overwrite VMAX is larger than natural VMAX: exposure
+                                        // still fits, recalculate SHS to keep the same exposure.
+                                        state->shs = state->vmax_overwrite - (state->vmax - state->shs);
+                                }
+                                // If overwrite VMAX <= natural VMAX the shs from
+                                // vc_calculate_exposure() is already correct.
                                 ret |= vc_sen_write_vmax(ctrl, state->vmax_overwrite);
-                                ret |= vc_sen_write_shs(ctrl, 0);
+                                ret |= vc_sen_write_shs(ctrl, state->shs);
                                 ret |= vc_sen_set_hmax(cam);
 
                         }

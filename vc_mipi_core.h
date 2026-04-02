@@ -332,6 +332,7 @@ struct vc_cam {
         struct vc_desc desc;
         struct vc_ctrl ctrl;
         struct vc_state state;
+        u32 force_color_mode; // Set to 1 to treat a mono sensor as color (from DT: force-color-mode)
 };
 
 // --- Helper functions to allow i2c communication for customization ----------
