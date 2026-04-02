@@ -1103,18 +1103,28 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->csr.sen.v_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
         ctrl->csr.sen.flash_duration	= (vc_csr4) { .l = 0x3928, .m = 0x3927, .h = 0x3926, .u = 0x3925 };
         ctrl->csr.sen.flash_offset      = (vc_csr4) { .l = 0x3924, .m = 0x3923, .h = 0x3922, .u = 0x0000 };
+        // TIMING_HTS: Total Horizontal Timing Size in SYS_CLK (80 MHz) cycles.
+        // Default 0x02D8 = 728 = 9100 ns line period.  Freely programmable
+        // (no fixed-value restriction unlike Sony sensors).
+        ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x380d, .m = 0x380c, .h = 0x0000, .u = 0x0000 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x380f, .m = 0x380e, .h = 0x0000, .u = 0x0000 };
         // NOTE: Modules rom table contains swapped address assigment.
         ctrl->csr.sen.again             = (vc_csr2) { .l = 0x3509, .m = 0x0000 };
         
         FRAME(0, 0, 1280, 800)
-        // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
-        //                      mode           min       max    def   max   def
-        MODE( 0, 2, FORMAT_RAW08, 0,     364,   16,   0xffff,   910,    0,    0,         0)
-        MODE( 1, 2, FORMAT_RAW10, 0,     364,   16,   0xffff,   910,    0,    0,         0)
+        // All read out      binning   hmax    hmax     hmax  vmax      vmax   vmax  blkl  blkl  retrigger
+        //                      mode   min      max      def   min       max    def   max   def
+        // HTS domain: SYS_CLK = 80 MHz.  hmax_min = hmax_def = 728 (= 9100 ns, the
+        // minimum at full resolution 1280x800 limited by MIPI line xmit time).
+        MODE_HMAX( 0, 2, FORMAT_RAW08, 0,     728, 0xffff,   728,   16,   0xffff,   910,    0,    0,         0)
+        MODE_HMAX( 1, 2, FORMAT_RAW10, 0,     728, 0xffff,   728,   16,   0xffff,   910,    0,    0,         0)
 
-        ctrl->clk_ext_trigger           = 40000000;
-        ctrl->clk_pixel                 = 40000000;
+        // SYS_CLK = 80 MHz (PLL1, table 2-11 in OV9281 datasheet).
+        // HTS register (0x380C/0x380D) is in SYS_CLK cycles.
+        // CAUTION: old value was 40 MHz / hmax=364 — same period (364/40 = 728/80 = 9.1 µs)
+        //          but writing hmax to the register requires the correct 80 MHz domain.
+        ctrl->clk_ext_trigger           = 80000000;
+        ctrl->clk_pixel                 = 80000000;
 
         ctrl->flash_factor              = 1758241 >> 4; // (1000 << 4)/9100 >> 4
         ctrl->flash_toffset             = 4;
