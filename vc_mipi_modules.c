@@ -462,7 +462,7 @@ static void vc_init_ctrl_imx297(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         vc_init_ctrl_imx296_base(ctrl, desc);
 
-        FRAME(0, 0, 704, 540) // 720 isn't divisible by 32
+        FRAME(0, 0, 720, 540) 
         // All read out      binning  hmax    hmax     hmax  vmax      vmax   vmax  blkl  blkl  retrigger
         //                      mode   min      max      def   min       max    def   max   def
         MODE_HMAX( 0, 1, FORMAT_RAW10, 0,   0x42e, 0xffff, 0x42e,    5,  0xfffff, 0x23e,  511,   60,    883008)
