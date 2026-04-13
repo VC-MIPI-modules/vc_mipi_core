@@ -173,14 +173,14 @@ static void vc_init_ctrl_imx296_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x3254, .m = 0x3255 };
 
         TOUT(ctrl->tout,
-                0x0226,                                                          /* toutsel_reg */
-                0x0229,                                                          /* trigtoutsel_reg */
-                0x026d,                                                          /* pulse1_reg */
-                ((vc_csr4){.l = 0x0270, .m = 0x0271, .h = 0x0272, .u = 0x0000}), /* pulse1_up_reg */
-                ((vc_csr4){.l = 0x0274, .m = 0x0275, .h = 0x0276, .u = 0x0000}), /* pulse1_dn_reg */
-                0x0279,                                                          /* pulse2_reg */
-                ((vc_csr4){.l = 0x027c, .m = 0x027d, .h = 0x027e, .u = 0x0000}), /* pulse2_up_reg */
-                ((vc_csr4){.l = 0x0280, .m = 0x0281, .h = 0x0282, .u = 0x0000})  /* pulse2_dn_reg */
+                0x3026,                                                          /* toutsel_reg */
+                0x3029,                                                          /* trigtoutsel_reg */
+                0x306d,                                                          /* pulse1_reg */
+                ((vc_csr4){.l = 0x3070, .m = 0x3071, .h = 0x3072, .u = 0x0000}), /* pulse1_up_reg */
+                ((vc_csr4){.l = 0x3074, .m = 0x3075, .h = 0x3076, .u = 0x0000}), /* pulse1_dn_reg */
+                0x3079,                                                          /* pulse2_reg */
+                ((vc_csr4){.l = 0x307c, .m = 0x307d, .h = 0x307e, .u = 0x0000}), /* pulse2_up_reg */
+                ((vc_csr4){.l = 0x3080, .m = 0x3081, .h = 0x3082, .u = 0x0000})  /* pulse2_dn_reg */
            );
 
         ctrl->flags                     = FLAG_EXPOSURE_SONY;
@@ -433,14 +433,14 @@ static void vc_init_ctrl_imx296(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE_HMAX( 1, 1, FORMAT_RAW10, 1,   0x44c, 0xffff, 0x44c,    5,  0xfffff, 0x22f, 1023,   60,    883008)
 
         TOUT(ctrl->tout, \
-                0x0226,  /* toutsel_reg */ \
-                0x0229,  /* trigtoutsel_reg */ \
-                0x026d,  /* pulse1_reg */ \
-                ((vc_csr4){.l=0x0270, .m=0x0271, .h = 0x0272, .u = 0x0000 }),  /* pulse1_up_reg */ \
-                ((vc_csr4){.l=0x0274, .m=0x0275, .h = 0x0276, .u = 0x0000 }),  /* pulse1_dn_reg */ \
-                0x0279,  /* pulse2_reg */ \
-                ((vc_csr4){.l=0x027c, .m=0x027d, .h = 0x027e, .u = 0x0000 }),  /* pulse2_up_reg */ \
-                ((vc_csr4){.l=0x0280, .m=0x0281, .h = 0x0282, .u = 0x0000 })   /* pulse2_dn_reg */ \
+                0x3026,  /* toutsel_reg */ \
+                0x3029,  /* trigtoutsel_reg */ \
+                0x306d,  /* pulse1_reg */ \
+                ((vc_csr4){.l=0x3070, .m=0x3071, .h = 0x3072, .u = 0x0000 }),  /* pulse1_up_reg */ \
+                ((vc_csr4){.l=0x3074, .m=0x3075, .h = 0x3076, .u = 0x0000 }),  /* pulse1_dn_reg */ \
+                0x3079,  /* pulse2_reg */ \
+                ((vc_csr4){.l=0x307c, .m=0x307d, .h = 0x307e, .u = 0x0000 }),  /* pulse2_up_reg */ \
+                ((vc_csr4){.l=0x3080, .m=0x3081, .h = 0x3082, .u = 0x0000 })   /* pulse2_dn_reg */ \
            );  
 
         BINNING(ctrl->binnings[0], 0, 0)
