@@ -101,7 +101,8 @@ int vc_sen_start_stream(struct vc_cam *cam);
 int vc_sen_stop_stream(struct vc_cam *cam);
 int vc_set_tout_sony(struct vc_cam *cam, __u32 exposure_us);
 
-
+__u32 vc_core_get_optimized_vmax(struct vc_cam *cam, __u8 num_lanes,  __u8 format, __u8 binning_mode, __u32 height);
+__u32 vc_core_get_retrigger(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
 // ------------------------------------------------------------------------------------------------
 //  Helper Functions for I2C Communication
 
@@ -1732,10 +1733,6 @@ int vc_sen_set_hmax(struct vc_cam *cam)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
-        __u8 num_lanes = state->num_lanes;
-        __u8 format = vc_core_mbus_code_to_format(state->format_code);
-        __u8 binning = state->binning_mode;
-        __u32 hmax = vc_core_get_hmax(cam, num_lanes, format, binning);
         
 #ifdef OVERWRITE_HMAX
         if (cam->state.hmax_overwrite < 0) {
