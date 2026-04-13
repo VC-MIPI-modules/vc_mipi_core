@@ -407,8 +407,8 @@ static void vc_init_ctrl_imx290(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
         //                      mode           min       max    def   max   def
-        MODE( 0, 2, FORMAT_RAW10, 0,     550,    1,  0x3ffff, 0x465,  511,   60,         0)
-        MODE( 1, 2, FORMAT_RAW12, 0,     550,    1,  0x3ffff, 0x465,  511,  240,         0)
+        MODE( 0, 2, FORMAT_RAW10, 0,    1100,    1,  0x3ffff, 0x465,  511,   60,         0)
+        MODE( 1, 2, FORMAT_RAW12, 0,    1100,    1,  0x3ffff, 0x465,  511,  240,         0)
         MODE( 2, 4, FORMAT_RAW10, 0,     550,    1,  0x3ffff, 0x465,  511,   60,         0)
         MODE( 3, 4, FORMAT_RAW12, 0,     550,    1,  0x3ffff, 0x465,  511,  240,         0)
 }
