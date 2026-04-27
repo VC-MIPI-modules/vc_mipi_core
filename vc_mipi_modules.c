@@ -105,6 +105,8 @@ static void vc_init_ctrl(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         ctrl->clk_ext_trigger           = desc->clk_ext_trigger;
         ctrl->clk_pixel                 = desc->clk_pixel;
+        ctrl->static_vmax               = 0;
+        ctrl->link_freq                 = 0;
 }
 
 static void vc_init_ctrl_imx183_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
@@ -1134,7 +1136,56 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL;
         ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
 }
+static void vc_init_ctrl_ov9281l(struct vc_ctrl *ctrl, struct vc_desc* desc)
+{
+        INIT_MESSAGE("OV9281L")
+        // ctrl->static_vmax = 0x038E; // 910
+        ctrl->exposure                  = (vc_control) { .min = 146, .max =    595000, .def =  10000 };
+        AGAIN_FRA(255, 12000)
+        // ctrl->csr.sen.shs               = (vc_csr4) { .l = 0x0000, .m = 0x0000, .h = 0x0000, .u = 0x0000 };
+        ctrl->csr.sen.h_start           = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
+        ctrl->csr.sen.v_start           = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
+        ctrl->csr.sen.h_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
+        ctrl->csr.sen.v_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
+        ctrl->csr.sen.h_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
+        ctrl->csr.sen.v_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
+        ctrl->csr.sen.h_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
+        ctrl->csr.sen.v_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
+        ctrl->csr.sen.o_width           = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
+        ctrl->csr.sen.o_height          = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
+        ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x380d, .m = 0x380c, .h = 0x0000, .u = 0x0000 };
+        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x380f, .m = 0x380e, .h = 0x0000, .u = 0x0000 };
+     
+        // ctrl->csr.sen.flash_duration	= (vc_csr4) { .l = 0x0000, .m = 0x0000, .h = 0x0000, .u = 0x0000 };
+        // ctrl->csr.sen.flash_offset      = (vc_csr4) { .l = 0x0000, .m = 0x0000, .h = 0x0000, .u = 0x0000 };
+        // ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x0000, .m = 0x0000, .h = 0x0000, .u = 0x0000 };
+        // NOTE: Modules rom table contains swapped address assigment.
+        ctrl->csr.sen.again             = (vc_csr2) { .l = 0x3509, .m = 0x0000 };
+        // SYS_CLK = 80 MHz. The FPGA initializes the OV9281L sensors with
+        // HMAX = 2000 (0x07D0), giving a line period of 2000/80MHz = 25 us.
+        // (9 concatenated sensors need the longer line time to transfer 11520 pixels
+        // per line over the MIPI bus before the next line starts.)
+        // Using hmax=2000 here ensures exposure_1H = exposure_us / 25us, which
+        // matches the actual sensor timing set by the FPGA firmware.
+        FRAME(0, 0, 11520, 800)
+        // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
+        //                      mode           min       max    def   max   def
+        // hmax=2000: sensor HMAX register value (0x380C/0x380D) at 80 MHz → 25 us line period.
+        MODE( 1, 4, FORMAT_RAW08, 0,    364,   16,      0xffff,   0x038E,    0,    0,         0)
 
+        ctrl->clk_ext_trigger           = 10000000;
+        ctrl->clk_pixel                 = 80000000;
+
+        ctrl->flash_factor              = 1758241 >> 4; // (1000 << 4)/9100 >> 4
+        ctrl->flash_toffset             = 4;
+
+        ctrl->flags                     = FLAG_EXPOSURE_OMNIVISION;
+        ctrl->flags                    |= FLAG_IO_ENABLED;
+        ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL;
+        ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
+        ctrl->flags                    |= FLAG_RESET_ALWAYS;
+
+}
 
 int vc_mod_ctrl_init(struct vc_ctrl* ctrl, struct vc_desc* desc)
 {
@@ -1143,31 +1194,32 @@ int vc_mod_ctrl_init(struct vc_ctrl* ctrl, struct vc_desc* desc)
         vc_init_ctrl(ctrl, desc);
 
         switch(desc->mod_id) {
-        case MOD_ID_IMX178: vc_init_ctrl_imx178(ctrl, desc); break;
-        case MOD_ID_IMX183: vc_init_ctrl_imx183(ctrl, desc); break;
-        case MOD_ID_IMX226: vc_init_ctrl_imx226(ctrl, desc); break;
-        case MOD_ID_IMX250: vc_init_ctrl_imx250(ctrl, desc); break;
-        case MOD_ID_IMX252: vc_init_ctrl_imx252(ctrl, desc); break;
-        case MOD_ID_IMX264: vc_init_ctrl_imx264(ctrl, desc); break;
-        case MOD_ID_IMX265: vc_init_ctrl_imx265(ctrl, desc); break;
-        case MOD_ID_IMX273: vc_init_ctrl_imx273(ctrl, desc); break;
-        case MOD_ID_IMX290: vc_init_ctrl_imx290(ctrl, desc); break;
-        case MOD_ID_IMX296: vc_init_ctrl_imx296(ctrl, desc); break;
-        case MOD_ID_IMX297: vc_init_ctrl_imx297(ctrl, desc); break;
-        case MOD_ID_IMX327: vc_init_ctrl_imx327(ctrl, desc); break;
-        case MOD_ID_IMX335: vc_init_ctrl_imx335(ctrl, desc); break;
-        case MOD_ID_IMX392: vc_init_ctrl_imx392(ctrl, desc); break;
-        case MOD_ID_IMX412: vc_init_ctrl_imx412(ctrl, desc); break;
-        case MOD_ID_IMX415: vc_init_ctrl_imx415(ctrl, desc); break;
-        case MOD_ID_IMX462: vc_init_ctrl_imx462(ctrl, desc); break;
-        case MOD_ID_IMX565: vc_init_ctrl_imx565(ctrl, desc); break;
-        case MOD_ID_IMX566: vc_init_ctrl_imx566(ctrl, desc); break;
-        case MOD_ID_IMX567: vc_init_ctrl_imx567(ctrl, desc); break;
-        case MOD_ID_IMX568: vc_init_ctrl_imx568(ctrl, desc); break;
-        case MOD_ID_IMX585: vc_init_ctrl_imx585(ctrl, desc); break;
-        case MOD_ID_IMX900: vc_init_ctrl_imx900(ctrl, desc); break;
-        case MOD_ID_OV7251: vc_init_ctrl_ov7251(ctrl, desc); break;
-        case MOD_ID_OV9281: vc_init_ctrl_ov9281(ctrl, desc); break;
+        case MOD_ID_IMX178:  vc_init_ctrl_imx178(ctrl, desc);  break;
+        case MOD_ID_IMX183:  vc_init_ctrl_imx183(ctrl, desc);  break;
+        case MOD_ID_IMX226:  vc_init_ctrl_imx226(ctrl, desc);  break;
+        case MOD_ID_IMX250:  vc_init_ctrl_imx250(ctrl, desc);  break;
+        case MOD_ID_IMX252:  vc_init_ctrl_imx252(ctrl, desc);  break;
+        case MOD_ID_IMX264:  vc_init_ctrl_imx264(ctrl, desc);  break;
+        case MOD_ID_IMX265:  vc_init_ctrl_imx265(ctrl, desc);  break;
+        case MOD_ID_IMX273:  vc_init_ctrl_imx273(ctrl, desc);  break;
+        case MOD_ID_IMX290:  vc_init_ctrl_imx290(ctrl, desc);  break;
+        case MOD_ID_IMX296:  vc_init_ctrl_imx296(ctrl, desc);  break;
+        case MOD_ID_IMX297:  vc_init_ctrl_imx297(ctrl, desc);  break;
+        case MOD_ID_IMX327:  vc_init_ctrl_imx327(ctrl, desc);  break;
+        case MOD_ID_IMX335:  vc_init_ctrl_imx335(ctrl, desc);  break;
+        case MOD_ID_IMX392:  vc_init_ctrl_imx392(ctrl, desc);  break;
+        case MOD_ID_IMX412:  vc_init_ctrl_imx412(ctrl, desc);  break;
+        case MOD_ID_IMX415:  vc_init_ctrl_imx415(ctrl, desc);  break;
+        case MOD_ID_IMX462:  vc_init_ctrl_imx462(ctrl, desc);  break;
+        case MOD_ID_IMX565:  vc_init_ctrl_imx565(ctrl, desc);  break;
+        case MOD_ID_IMX566:  vc_init_ctrl_imx566(ctrl, desc);  break;
+        case MOD_ID_IMX567:  vc_init_ctrl_imx567(ctrl, desc);  break;
+        case MOD_ID_IMX568:  vc_init_ctrl_imx568(ctrl, desc);  break;
+        case MOD_ID_IMX585:  vc_init_ctrl_imx585(ctrl, desc);  break;
+        case MOD_ID_IMX900:  vc_init_ctrl_imx900(ctrl, desc);  break;
+        case MOD_ID_OV7251:  vc_init_ctrl_ov7251(ctrl, desc);  break;
+        case MOD_ID_OV9281:  vc_init_ctrl_ov9281(ctrl, desc);  break;
+        case MOD_ID_OV9281L: vc_init_ctrl_ov9281l(ctrl, desc); break;
         default:
                 vc_err(dev, "%s(): Detected module not supported!\n", __FUNCTION__);
                 return 1;

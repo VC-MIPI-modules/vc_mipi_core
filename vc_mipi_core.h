@@ -299,6 +299,8 @@ struct vc_ctrl {
         __u32 flags;
         __u32 mbus_codes[MAX_MBUS_CODES];
         bool  packed_outputs;
+        __u32 static_vmax;              // If non-zero, VMAX is fixed (e.g. OV9281L linked array)
+        __u64 link_freq;                // If non-zero, override computed CSI-2 link frequency (Hz)
 };
 
 struct vc_state {

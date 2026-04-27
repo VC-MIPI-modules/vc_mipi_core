@@ -349,18 +349,23 @@ static void vc_core_print_mode(struct vc_cam *cam)
                 vc_notice(dev, "| lanes | format | binning | exposure   | framerate |\n");
                 vc_notice(dev, "|       |        | mode    | max [us]   | max [mHz] |\n");
                 vc_notice(dev, "+-------+--------+---------+------------+-----------+\n");
-                while (index < MAX_VC_MODES && ctrl->mode[index].num_lanes != 0) {
+                for (index = 0; index < MAX_VC_MODES; index++) {
                         __u8 num_lanes = ctrl->mode[index].num_lanes;
                         __u8 format = ctrl->mode[index].format;
                         __u8 binning = ctrl->mode[index].binning;
                         __u32 height = ctrl->frame.height;
-                        __u32 max_exposure = vc_core_calculate_max_exposure(cam, num_lanes, format, binning);
-                        __u32 max_frame_rate = vc_core_calculate_max_frame_rate(cam, num_lanes, format, binning, height);
+                        __u32 max_exposure, max_frame_rate;
+
+                        /* Skip unset/invalid entries */
+                        if (num_lanes == 0 || format == 0)
+                                continue;
+
+                        max_exposure = vc_core_calculate_max_exposure(cam, num_lanes, format, binning);
+                        max_frame_rate = vc_core_calculate_max_frame_rate(cam, num_lanes, format, binning, height);
 
                         vc_core_print_format(format, sformat);
                         vc_notice(dev, "|     %1d | %s  |       %1d | %10d | %9d |\n",
                                 num_lanes, sformat, binning, max_exposure, max_frame_rate);
-                        index++;
                 }
                 vc_notice(dev, "+-------+--------+---------+------------+-----------+\n");
         }
@@ -610,9 +615,18 @@ static __u32 vc_core_get_default_format(struct vc_cam *cam)
 {
         struct vc_desc *desc = &cam->desc;
         struct vc_ctrl *ctrl = &cam->ctrl;
-        __u8 format = desc->modes[0].format;
+        __u8 format = 0;
         int is_color = cam->force_color_mode ? 1 : vc_mod_is_color_sensor(desc);
         int is_bgrg = ctrl->flags & FLAG_FORMAT_GBRG;
+        int i;
+
+        /* Skip modes with invalid format (0x00) reported by FPGA */
+        for (i = 0; i < desc->num_modes; i++) {
+                if (desc->modes[i].format != 0) {
+                        format = desc->modes[i].format;
+                        break;
+                }
+        }
         return vc_core_format_to_mbus_code(format, is_color, is_bgrg);
 }
 
@@ -627,7 +641,15 @@ void vc_core_update_mbus_codes(struct vc_cam *cam)
 
         for (modeIx = 0; modeIx < desc->num_modes; modeIx++) {
                 struct vc_desc_mode *mode = &desc->modes[modeIx];
-                __u32 code = vc_core_format_to_mbus_code(mode->format, is_color, is_bgrg);
+                __u32 code;
+
+                /* Skip modes with invalid format (0x00) reported by FPGA */
+                if (mode->format == 0) {
+                        vc_dbg(dev, "%s(): Skipping mode %u with invalid format 0x00\n", __FUNCTION__, modeIx);
+                        continue;
+                }
+
+                code = vc_core_format_to_mbus_code(mode->format, is_color, is_bgrg);
                 vc_dbg(dev, "%s(): Checking mode %u (code: 0x%04x)\n", __FUNCTION__, modeIx, code);
 
                 for (codeIx = 0; codeIx < ARRAY_SIZE(ctrl->mbus_codes); codeIx++) {
@@ -1138,6 +1160,12 @@ int vc_core_update_controls(struct vc_cam *cam)
 
                 vc_dbg(dev, "%s(): num_lanes: %u, format %u, exposure.max: %u us, framerate.max: %u mHz\n",
                         __FUNCTION__, num_lanes, format, ctrl->exposure.max, ctrl->framerate.max);
+
+                /* Clamp def to [min, max] so V4L2 ctrl init always gets a valid default */
+                if (ctrl->exposure.def > ctrl->exposure.max)
+                        ctrl->exposure.def = ctrl->exposure.max;
+                if (ctrl->exposure.def < ctrl->exposure.min)
+                        ctrl->exposure.def = ctrl->exposure.min;
         }
 
         return 0;
@@ -1230,6 +1258,21 @@ static int vc_mod_write_exposure(struct i2c_client *client, __u32 value)
         ret |= i2c_write_reg(dev, client, MOD_REG_EXPO_M, M_BYTE(value), __FUNCTION__);
         ret |= i2c_write_reg(dev, client, MOD_REG_EXPO_H, H_BYTE(value), __FUNCTION__);
         ret |= i2c_write_reg(dev, client, MOD_REG_EXPO_U, U_BYTE(value), __FUNCTION__);
+
+        return ret;
+}
+
+static int vc_mod_write_sync_ov9281l(struct i2c_client *client, __u32 value)
+{
+        struct device *dev = &client->dev;
+        int ret;
+
+        vc_dbg(dev, "%s(): Write module exposure = 0x%08x (%u)\n", __FUNCTION__, value, value);
+
+        ret  = i2c_write_reg(dev, client, 0x0204, L_BYTE(value * 2), __FUNCTION__);
+        ret |= i2c_write_reg(dev, client, 0x0205, M_BYTE(value * 2), __FUNCTION__); 
+        ret |= i2c_write_reg(dev, client, 0x0206, H_BYTE(value * 2), __FUNCTION__);
+       
 
         return ret;
 }
@@ -2045,31 +2088,41 @@ int vc_sen_start_stream(struct vc_cam *cam)
                 vc_sen_stop_stream(cam);
         }
 
-        if ((ctrl->flags & FLAG_EXPOSURE_SONY || ctrl->flags & FLAG_EXPOSURE_NORMAL) || 
-            (ctrl->flags & FLAG_EXPOSURE_OMNIVISION && !vc_mod_is_trigger_enabled(cam))) {
-                ret |= vc_sen_write_mode(ctrl, ctrl->csr.sen.mode_operating);
-                if (ret)
-                        vc_err(dev, "%s(): Unable to start streaming (error: %d)\n", __FUNCTION__, ret);
-        }
-
-
         if (ctrl->flags & FLAG_TRIGGER_SLAVE && state->trigger_mode == REG_TRIGGER_SYNC) {
                 ret |= vc_mod_write_io_mode(client_mod, REG_IO_XTRIG_ENABLE);
                 ret |= vc_mod_write_trigger_mode(client_mod, REG_TRIGGER_DISABLE);
-
         } else {
-                if ((ctrl->flags & FLAG_EXPOSURE_OMNIVISION) && vc_mod_is_trigger_enabled(cam)) {
+                /* For OV9281L (and any OMNIVISION sensor using xtrig for sync),
+                 * always keep xtrig enabled (reg3[3]=1). In free-run mode the
+                 * internal FPGA sync generator distributes pulses to all sensors
+                 * via xtrig; without it the sensors receive no sync and stream
+                 * no frames. In trigger mode xtrig carries the external trigger. */
+                if (ctrl->flags & FLAG_EXPOSURE_OMNIVISION) {
                         io_mode |= REG_IO_XTRIG_ENABLE;
                 }
 
                 ret |= vc_mod_write_io_mode(client_mod, io_mode);
                 ret |= vc_mod_write_trigger_mode(client_mod, state->trigger_mode);
         }
+
+        /* Start sensor streaming AFTER io_mode/xtrig is configured so the
+         * FPGA sync generator is running before the sensor outputs pixels. */
+        if ((ctrl->flags & FLAG_EXPOSURE_SONY || ctrl->flags & FLAG_EXPOSURE_NORMAL) ||
+            (ctrl->flags & FLAG_EXPOSURE_OMNIVISION && !vc_mod_is_trigger_enabled(cam))) {
+                ret |= vc_sen_write_mode(ctrl, ctrl->csr.sen.mode_operating);
+                if (ret)
+                        vc_err(dev, "%s(): Unable to start streaming (error: %d)\n", __FUNCTION__, ret);
+        }
+
         if (!ret && reset) {
                 ret |= vc_sen_set_gain(cam, cam->state.gain, true);
                 ret |= vc_sen_set_blacklevel(cam, cam->state.blacklevel);
         }
-        ret |= vc_sen_set_exposure(cam, cam->state.exposure);
+        /* If exposure was never set by userspace (or set to 0 lines by
+         * libcamera before streaming), fall back to the sensor default. */
+        ret |= vc_sen_set_exposure(cam, cam->state.exposure > 0
+                                        ? cam->state.exposure
+                                        : ctrl->exposure.def);
 
         
         state->streaming = 1;
@@ -2307,6 +2360,21 @@ static void vc_calculate_exposure_normal(struct vc_cam *cam, __u64 exposure_1H)
         __u32 shs_min = vc_core_get_vmax(cam, num_lanes, format, binning).min;
         __u32 vmax_max;
 
+        // Static VMAX mode: VMAX is fixed, only SHS is adjusted (e.g. OV9281L linked sensor array)
+        // OV9281 datasheet: exposure must be <= VTS - 25 rows
+        if (ctrl->static_vmax != 0) {
+                state->vmax = ctrl->static_vmax;
+                vmax_max = ctrl->static_vmax > 25 ? ctrl->static_vmax - 25 : 0;
+                if (exposure_1H >= vmax_max) {
+                        state->shs = vmax_max;
+                } else if (exposure_1H >= shs_min) {
+                        state->shs = exposure_1H;
+                } else {
+                        state->shs = shs_min;
+                }
+                return;
+        }
+
         // OmniVision sensors require exposure <= VTS - 25 rows for readout overhead
         if (ctrl->flags & FLAG_EXPOSURE_OMNIVISION) {
                 vmax_max = state->vmax > 25 ? state->vmax - 25 : state->vmax;
@@ -2497,9 +2565,16 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
 
                 vc_calculate_exposure(cam, exposure_us);
                 ret |= vc_sen_write_shs(ctrl, state->shs << 4);
-                ret |= vc_sen_write_vmax(ctrl, state->vmax);
+                // Skip VMAX write when static_vmax is set: frame timing is fixed
+                if (ctrl->static_vmax == 0) {
+                        ret |= vc_sen_write_vmax(ctrl, state->vmax);
+                }
                 ret |= vc_sen_write_flash_duration(ctrl, duration);
                 ret |= vc_sen_write_flash_offset(ctrl, ctrl->flash_toffset);
+                state->exposure_cnt = ((__u64)exposure_us * ctrl->clk_ext_trigger) / 1000000;
+
+                // ret |= vc_mod_write_sync_ov9281l(client_mod, state->exposure_cnt);
+
         }
 
         if (ret == 0) {
