@@ -1217,7 +1217,7 @@ int vc_mod_ctrl_init(struct vc_ctrl* ctrl, struct vc_desc* desc)
         case MOD_ID_IMX585:  vc_init_ctrl_imx585(ctrl, desc);  break;
         case MOD_ID_IMX900:  vc_init_ctrl_imx900(ctrl, desc);  break;
         case MOD_ID_OV7251:  vc_init_ctrl_ov7251(ctrl, desc);  break;
-        case MOD_ID_OV9281:  vc_init_ctrl_ov9281(ctrl, desc);  break;
+        case MOD_ID_OV9281:  vc_init_ctrl_ov9281l(ctrl, desc);  break; // Workaround for older firmware of OV9281L that identifies as OV9281
         case MOD_ID_OV9281L: vc_init_ctrl_ov9281l(ctrl, desc); break;
         default:
                 vc_err(dev, "%s(): Detected module not supported!\n", __FUNCTION__);
