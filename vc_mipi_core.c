@@ -35,7 +35,7 @@ int debug = 3;
 #define MOD_REG_RETRIG_U         0x0110 // register 16 [0x0110]: retrigger MSB (R/W, default: 0x00)
 
 #define REG_RESET_PWR_UP         0x00
-#define REG_RESET_SENSOR         0x01   // reg0[0] = 0 sensor reset the sensor is held in reset when this bit is 1
+#define REG_RESET_SENSOR         0x03   // reg0[0] = 0 sensor reset the sensor is held in reset when this bit is 1, 3 => Fix for OV9281L older firmware
 #define REG_RESET_PWR_DOWN       0x02   // reg0[1] = 0 power down power for the sensor is switched off
 #define REG_STATUS_NO_COM        0x00   // reg1[7:0] = 0x00 default, no communication with sensor possible
 #define REG_STATUS_READY         0x80   // reg1[7:0] = 0x80 sensor ready after successful initialization sequence

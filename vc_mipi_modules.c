@@ -1170,8 +1170,7 @@ static void vc_init_ctrl_ov9281l(struct vc_ctrl *ctrl, struct vc_desc* desc)
         FRAME(0, 0, 11520, 800)
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
         //                      mode           min       max    def   max   def
-        // hmax=2000: sensor HMAX register value (0x380C/0x380D) at 80 MHz → 25 us line period.
-        MODE( 1, 4, FORMAT_RAW08, 0,    364,   16,      0xffff,   0x038E,    0,    0,         0)
+        MODE( 1, 4, FORMAT_RAW08, 0,    364,   16,      0x038E,   0x038E,    0,    0,         0)
 
         ctrl->clk_ext_trigger           = 10000000;
         ctrl->clk_pixel                 = 80000000;
