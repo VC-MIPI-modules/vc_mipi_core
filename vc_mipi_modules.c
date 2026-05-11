@@ -514,16 +514,17 @@ static void vc_init_ctrl_imx335(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->csr.sen.mode_operating    = 0x00;
 
         FRAME(7, 52, 2592, 1944)
-        // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
-        //                      mode           min       max    def   max   def
-        MODE( 0, 2, FORMAT_RAW10, 0,   0x226,    9,  0xfffff,  4500, 1023,   50,         0)
-        MODE( 1, 2, FORMAT_RAW12, 0,   0x226,    9,  0xfffff,  4500, 1023,   50,         0)
-        MODE( 2, 4, FORMAT_RAW10, 0,   0x113,    9,  0xfffff,  4500, 1023,   50,         0)
-        MODE( 3, 4, FORMAT_RAW12, 0,   0x113,    9,  0xfffff,  4500, 1023,   50,         0)
+        // All read out      binning  hmax    hmax     hmax  vmax      vmax   vmax  blkl  blkl  retrigger
+        //                      mode   min      max      def   min       max    def   max   def
+        MODE_HMAX( 0, 2, FORMAT_RAW10, 0,   0x226, 0xffff, 0x226,    9,  0xfffff,  4500, 1023,   50,         0)
+        MODE_HMAX( 1, 2, FORMAT_RAW12, 0,   0x226, 0xffff, 0x226,    9,  0xfffff,  4500, 1023,   50,         0)
+        MODE_HMAX( 2, 4, FORMAT_RAW10, 0,   0x113, 0xffff, 0x113,    9,  0xfffff,  4500, 1023,   50,         0)
+        MODE_HMAX( 3, 4, FORMAT_RAW12, 0,   0x113, 0xffff, 0x113,    9,  0xfffff,  4500, 1023,   50,         0)
 
         ctrl->flags                    |= FLAG_EXPOSURE_SONY;
         ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
         ctrl->flags                    |= FLAG_DOUBLE_HEIGHT;
+        
         ctrl->flags                    |= FLAG_IO_ENABLED;
 }
 

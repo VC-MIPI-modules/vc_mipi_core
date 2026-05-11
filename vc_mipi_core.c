@@ -916,7 +916,10 @@ __u32 vc_core_get_optimized_vmax(struct vc_cam *cam, __u8 num_lanes,  __u8 forma
 
         // Increase the frame rate when image height is reduced.
         if (ctrl->flags & FLAG_INCREASE_FRAME_RATE && height < ctrl->frame.height) {
-                vmax_res = vmax_def - (ctrl->frame.height - height);
+                /* For FLAG_DOUBLE_HEIGHT sensors VMAX is in half-line units, so each
+                 * saved output line corresponds to 2 VMAX units. */
+                u32 vmax_scale = (ctrl->flags & FLAG_DOUBLE_HEIGHT) ? 2 : 1;
+                vmax_res = vmax_def - vmax_scale * (ctrl->frame.height - height);
                 vc_dbg(dev, "%s(): Increased frame rate: vmax: %u \n", __FUNCTION__,
                         vmax_res);
 
