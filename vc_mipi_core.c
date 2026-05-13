@@ -2545,7 +2545,10 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
                                 }
                                 // If overwrite VMAX <= natural VMAX the shs from
                                 // vc_calculate_exposure() is already correct.
-                                ret |= vc_sen_write_vmax(ctrl, state->vmax_overwrite);
+                                if(ctrl->static_vmax == 0)
+                                {
+                                        ret |= vc_sen_write_vmax(ctrl, state->vmax_overwrite);
+                                }
                                 ret |= vc_sen_write_shs(ctrl, state->shs);
                                 ret |= vc_sen_set_hmax(cam);
 
@@ -2553,7 +2556,12 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
                         else
                         {
                                 ret |= vc_sen_write_shs(ctrl, state->shs);
-                                ret |= vc_sen_write_vmax(ctrl, state->vmax);
+                                if(ctrl->static_vmax == 0)
+                                {
+                                        ret |= vc_sen_write_vmax(ctrl, state->vmax);
+
+                                }
+
 
                         }
                         vc_set_tout_sony(cam, exposure_us);

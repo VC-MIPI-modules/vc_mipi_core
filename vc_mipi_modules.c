@@ -1139,8 +1139,11 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
 static void vc_init_ctrl_ov9281l(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         INIT_MESSAGE("OV9281L")
-        // ctrl->static_vmax = 0x038E; // 910
-        ctrl->exposure                  = (vc_control) { .min = 146, .max =    595000, .def =  10000 };
+        ctrl->static_vmax = 0x038E; // 910
+        // With hmax=2000, clk=80MHz: period=25us/line, static VMAX=910
+        // min exposure: 1 line * 25us = 25us
+        // max exposure: (910-25) lines * 25us = 885 * 25us = 22125us
+        ctrl->exposure                  = (vc_control) { .min = 25, .max = 22125, .def =  10000 };
         AGAIN_FRA(255, 12000)
         // ctrl->csr.sen.shs               = (vc_csr4) { .l = 0x0000, .m = 0x0000, .h = 0x0000, .u = 0x0000 };
         ctrl->csr.sen.h_start           = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
@@ -1170,7 +1173,8 @@ static void vc_init_ctrl_ov9281l(struct vc_ctrl *ctrl, struct vc_desc* desc)
         FRAME(0, 0, 11520, 800)
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
         //                      mode           min       max    def   max   def
-        MODE( 1, 4, FORMAT_RAW08, 0,    364,   16,      0x038E,   0x038E,    0,    0,         0)
+        // vmax_min=1: shs_min=1 line=25us, allowing exposures down to 25us
+        MODE( 1, 4, FORMAT_RAW08, 0,   2000,    1,      0x038E,   0x038E,    0,    0,         0)
 
         ctrl->clk_ext_trigger           = 10000000;
         ctrl->clk_pixel                 = 80000000;
