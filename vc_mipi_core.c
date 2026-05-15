@@ -2156,6 +2156,40 @@ int vc_sen_stop_stream(struct vc_cam *cam)
 }
 EXPORT_SYMBOL(vc_sen_stop_stream);
 
+int vc_sen_check_i2c(struct vc_cam *cam)
+{
+        struct vc_ctrl *ctrl = &cam->ctrl;
+        struct i2c_client *client = ctrl->client_sen;
+        struct device *dev = &client->dev;
+        __u32 reg_addr = ctrl->csr.sen.mode.l;
+        __u8 buf[2];
+        struct i2c_msg msgs[2] = {
+                { .addr = client->addr, .flags = 0,        .len = 2, .buf = buf },
+                { .addr = client->addr, .flags = I2C_M_RD, .len = 1, .buf = buf },
+        };
+        int ret;
+
+        if (!reg_addr)
+                reg_addr = ctrl->csr.sen.hmax.l;
+        if (!reg_addr)
+                return 0;
+
+        buf[0] = reg_addr >> 8;
+        buf[1] = reg_addr & 0xff;
+
+        /* i2c_read_reg() returns __u8, so negative error codes are truncated
+         * and can never be < 0. Use i2c_transfer directly to keep the int. */
+        ret = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
+        if (ret < 0) {
+                vc_err(dev, "%s(): Sensor not responding at I2C address 0x%02x"
+                       " -- check the device tree 'reg' property\n",
+                       __func__, client->addr);
+                return -ENODEV;
+        }
+        return 0;
+}
+EXPORT_SYMBOL(vc_sen_check_i2c);
+
 // ------------------------------------------------------------------------------------------------
 
 static __u32 vc_core_calculate_period_1H(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
