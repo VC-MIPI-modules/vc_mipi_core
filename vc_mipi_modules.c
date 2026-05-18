@@ -797,22 +797,22 @@ static void vc_init_ctrl_imx566(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         FRAME(0, 0, 2848, 2848)
 
-        // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
-        //                      mode           min       max    def   max   def
-        MODE( 0, 2, FORMAT_RAW08, 0,     752,   24, 0xffffff, 0xb98,  255,   15,   1612278)
-        MODE( 1, 2, FORMAT_RAW10, 0,     930,   20, 0xffffff, 0xb92, 1023,   60,   1991196)
-        MODE( 2, 2, FORMAT_RAW12, 0,    1109,   18, 0xffffff, 0xb8c, 4095,  240,   2371194)
-        MODE( 3, 4, FORMAT_RAW08, 0,     396,   40, 0xffffff, 0xbb0,  255,   15,    854172)
-        MODE( 4, 4, FORMAT_RAW10, 0,     485,   34, 0xffffff, 0xba6, 1023,   60,   1043334)
-        MODE( 5, 4, FORMAT_RAW12, 0,     574,   30, 0xffffff, 0xba0, 4095,  240,   1233144)
+        // All read out      binning  hmax    hmax     hmax  vmax      vmax   vmax  blkl  blkl  retrigger
+        //                      mode   min      max      def   min       max    def   max   def
+        MODE_HMAX( 0, 2, FORMAT_RAW08, 0,     752, 0xffff,   752,   24, 0xffffff, 0xb98,  255,   15,   1612278)
+        MODE_HMAX( 1, 2, FORMAT_RAW10, 0,     930, 0xffff,   930,   20, 0xffffff, 0xb92, 1023,   60,   1991196)
+        MODE_HMAX( 2, 2, FORMAT_RAW12, 0,    1109, 0xffff,  1109,   18, 0xffffff, 0xb8c, 4095,  240,   2371194)
+        MODE_HMAX( 3, 4, FORMAT_RAW08, 0,     396, 0xffff,   396,   40, 0xffffff, 0xbb0,  255,   15,    854172)
+        MODE_HMAX( 4, 4, FORMAT_RAW10, 0,     485, 0xffff,   485,   34, 0xffffff, 0xba6, 1023,   60,   1043334)
+        MODE_HMAX( 5, 4, FORMAT_RAW12, 0,     574, 0xffff,   574,   30, 0xffffff, 0xba0, 4095,  240,   1233144)
 
         // Binning
-        MODE( 6, 2, FORMAT_RAW08, 1,     396,   40, 0xffffff, 0x604,  255,   15,    430812)
-        MODE( 7, 2, FORMAT_RAW10, 1,     485,   36, 0xffffff, 0x5fc, 1023,   60,    524826)
-        MODE( 8, 2, FORMAT_RAW12, 1,     575,   32, 0xffffff, 0x5f4, 4095,  240,    620568)
-        MODE( 9, 4, FORMAT_RAW08, 1,     218,   72, 0xffffff, 0x634,  255,   15,    242892)
-        MODE(10, 4, FORMAT_RAW10, 1,     262,   60, 0xffffff, 0x620, 1023,   60,    288846)
-        MODE(11, 4, FORMAT_RAW12, 1,     307,   52, 0xffffff, 0x614, 4095,  240,    336690)
+        MODE_HMAX( 6, 2, FORMAT_RAW08, 1,     396, 0xffff,   396,   40, 0xffffff, 0x604,  255,   15,    430812)
+        MODE_HMAX( 7, 2, FORMAT_RAW10, 1,     485, 0xffff,   485,   36, 0xffffff, 0x5fc, 1023,   60,    524826)
+        MODE_HMAX( 8, 2, FORMAT_RAW12, 1,     575, 0xffff,   575,   32, 0xffffff, 0x5f4, 4095,  240,    620568)
+        MODE_HMAX( 9, 4, FORMAT_RAW08, 1,     218, 0xffff,   218,   72, 0xffffff, 0x634,  255,   15,    242892)
+        MODE_HMAX(10, 4, FORMAT_RAW10, 1,     262, 0xffff,   262,   60, 0xffffff, 0x620, 1023,   60,    288846)
+        MODE_HMAX(11, 4, FORMAT_RAW12, 1,     307, 0xffff,   307,   52, 0xffffff, 0x614, 4095,  240,    336690)
 
         // Special registers for binning mode
         BINNING_MODE_REGS(  6, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x24 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 } );
