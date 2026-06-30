@@ -373,7 +373,7 @@ static void vc_init_ctrl_imx273(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE( 6, 2, FORMAT_RAW08, 1,     336,   15,  0xfffff,   586,  255,   15,    519230)
         MODE( 7, 2, FORMAT_RAW10, 1,     420,   15,  0xfffff,   586, 1023,   60,    519230)
         MODE( 8, 2, FORMAT_RAW12, 1,     480,   15,  0xfffff,   586, 4095,  240,    519230)
-        MODE( 9, 4, FORMAT_RAW08, 1,     218,   15,  0xfffff,   586,  255,   15,    519230)
+        MODE( 9, 4, FORMAT_RAW08, 1,     238,   15,  0xfffff,   586,  255,   15,    519230)
         MODE(10, 4, FORMAT_RAW10, 1,     250,   15,  0xfffff,   586, 1032,   60,    519230)
         MODE(11, 4, FORMAT_RAW12, 1,     396,   15,  0xfffff,   586, 4095,  240,    519230)
 
