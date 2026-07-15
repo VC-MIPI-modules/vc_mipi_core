@@ -111,7 +111,7 @@ __u32 vc_core_get_retrigger(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u
 #define M_BYTE(value) (__u8)((value >>  8) & 0xff)
 #define L_BYTE(value) (__u8)((value >>  0) & 0xff)
 
-static __u8 i2c_read_reg(struct device *dev, struct i2c_client *client, const __u16 addr, const char* func)
+static int i2c_read_reg(struct device *dev, struct i2c_client *client, const __u16 addr, const char* func)
 {
         __u8 buf[2] = { addr >> 8, addr & 0xff };
         int ret;
@@ -1069,13 +1069,45 @@ static int vc_mod_wait_until_module_is_ready(struct i2c_client *client)
                 status = vc_mod_read_status(client);
                 try++;
         }
+        if (status < 0) {
+                vc_err(dev, "%s(): Unable to read module status (error: %d)\n", __func__, status);
+                return status;
+        }
         if (status == REG_STATUS_ERROR) {
                 vc_err(dev, "%s(): Internal Error!", __func__);
                 return -EIO;
         }
+        if (status == REG_STATUS_NO_COM) {
+                vc_err(dev, "%s(): No communication with sensor after %d attempts - is it connected and configured for the correct I2C address?\n",
+                        __func__, try);
+                return -ENODEV;
+        }
 
         vc_dbg(dev, "%s(): Module is ready!\n", __FUNCTION__);
         return 0;
+}
+
+/* Powers up the sensor and waits for the module to report that it can talk
+ * to it, then powers it back down again. This runs once at probe time so a
+ * disconnected or misconfigured (wrong I2C address) sensor is caught before
+ * the v4l2 subdev is registered, instead of only surfacing as I2C write
+ * failures once streaming starts. */
+static int vc_mod_check_sensor_connected(struct i2c_client *client_mod)
+{
+        struct device *dev = &client_mod->dev;
+        int ret;
+
+        ret = i2c_write_reg(dev, client_mod, MOD_REG_RESET, REG_RESET_PWR_UP, __FUNCTION__);
+        if (ret) {
+                vc_err(dev, "%s(): Unable to power up the module (error: %d)\n", __FUNCTION__, ret);
+                return ret;
+        }
+
+        ret = vc_mod_wait_until_module_is_ready(client_mod);
+
+        i2c_write_reg(dev, client_mod, MOD_REG_RESET, REG_RESET_PWR_DOWN, __FUNCTION__);
+
+        return ret;
 }
 
 static int vc_mod_setup(struct vc_ctrl *ctrl, int mod_i2c_addr, struct vc_desc *desc)
@@ -1108,6 +1140,20 @@ static int vc_mod_setup(struct vc_ctrl *ctrl, int mod_i2c_addr, struct vc_desc *
                         return -EIO;
                 }
                 *((char *)(desc) + addr) = (char)reg;
+        }
+
+        reg = i2c_read_reg(dev_mod, client_mod, MOD_REG_SEN_ADDR, __FUNCTION__);
+        if (reg < 0) {
+                i2c_unregister_device(client_mod);
+                return -EIO;
+        }
+        if ((__u8)reg != client_sen->addr) {
+                vc_err(dev_sen, "%s(): Sensor I2C address mismatch: module is wired for sensor address 0x%02x "
+                        "but the loaded device tree overlay bound this device to 0x%02x. Wrong sensor "
+                        "manufacturer overlay selected (0x60 = Omnivision, 0x1a = Sony)?\n",
+                        __FUNCTION__, reg, client_sen->addr);
+                i2c_unregister_device(client_mod);
+                return -ENODEV;
         }
 
         // TODO: Check if connected module is really a VC MIPI module
@@ -1195,6 +1241,11 @@ int vc_core_init(struct vc_cam *cam, struct i2c_client *client)
         ret = vc_mod_setup(ctrl, 0x10, desc);
         if (ret) {
                 return -EIO;
+        }
+        ret = vc_mod_check_sensor_connected(ctrl->client_mod);
+        if (ret) {
+                vc_err(&ctrl->client_mod->dev, "%s(): Sensor not detected, aborting probe (error: %d)\n", __FUNCTION__, ret);
+                return ret;
         }
         ret = vc_mod_ctrl_init(ctrl, desc);
         if (ret) {
@@ -2050,9 +2101,9 @@ int vc_sen_start_stream(struct vc_cam *cam)
 
         if ((ctrl->flags & FLAG_EXPOSURE_SONY || ctrl->flags & FLAG_EXPOSURE_NORMAL) || 
             (ctrl->flags & FLAG_EXPOSURE_OMNIVISION && !vc_mod_is_trigger_enabled(cam))) {
-                ret |= vc_sen_write_mode(ctrl, ctrl->csr.sen.mode_operating);
-                if (ret)
-                        vc_err(dev, "%s(): Unable to start streaming (error: %d)\n", __FUNCTION__, ret);
+        ret |= vc_sen_write_mode(ctrl, ctrl->csr.sen.mode_operating);
+        if (ret)
+                vc_err(dev, "%s(): Unable to start streaming (error: %d)\n", __FUNCTION__, ret);
         }
 
 
