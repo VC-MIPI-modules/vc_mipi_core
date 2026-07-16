@@ -450,6 +450,7 @@ static void vc_init_ctrl_imx296(struct vc_ctrl *ctrl, struct vc_desc* desc)
         
         ctrl->max_binning_modes_used = 1;
         ctrl->flags                    |= FLAG_USE_BINNING_INDEX;
+        ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
 }
 
 // ------------------------------------------------------------------------------------------------
