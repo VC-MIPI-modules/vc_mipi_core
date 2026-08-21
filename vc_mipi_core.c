@@ -577,6 +577,29 @@ __u32 vc_core_get_retrigger(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u
 int vc_core_set_hmax_overwrite(struct vc_cam *cam, __s32 hmax_overwrite)
 {
         struct device *dev = vc_core_get_sen_device(cam);
+
+        /* hmax_overwrite < 0 is the "no overwrite" sentinel (see vc_sen_set_hmax()),
+         * so only clamp genuine positive requests. Callers (e.g. the V4L2_CID_HBLANK
+         * handler translating libcamera's own line-length/frame-duration calculations)
+         * derive this value through a unit conversion that can legitimately round
+         * one tick outside the sensor's real range -- writing that straight to the
+         * sensor silently breaks CSI output (STREAMON succeeds, zero frames ever
+         * arrive). Clamp to the active mode's declared [hmax.min, hmax.max] instead,
+         * same floor/ceiling-protection principle as VMAX_MARGIN. */
+        if (hmax_overwrite > 0) {
+                struct vc_state *state = &cam->state;
+                __u8 num_lanes = state->num_lanes;
+                __u8 format = vc_core_mbus_code_to_format(state->format_code);
+                __u8 binning = state->binning_mode;
+                vc_mode mode = vc_core_get_mode_by_param(cam, num_lanes, format, binning);
+
+                if ((__u32)hmax_overwrite < mode.hmax.min) {
+                        hmax_overwrite = mode.hmax.min;
+                } else if ((__u32)hmax_overwrite > mode.hmax.max) {
+                        hmax_overwrite = mode.hmax.max;
+                }
+        }
+
         vc_notice(dev, "%s(): Set HMAX overwrite: %d\n", __FUNCTION__, hmax_overwrite);
 
         cam->state.hmax_overwrite = hmax_overwrite;
@@ -899,7 +922,8 @@ __u32 vc_core_get_optimized_vmax(struct vc_cam *cam, __u8 num_lanes,  __u8 forma
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct device *dev = &ctrl->client_sen->dev;
-        __u32 vmax_def = vc_core_get_vmax(cam, num_lanes, format, binning_mode).def;
+        vc_mode mode = vc_core_get_mode_by_param(cam, num_lanes, format, binning_mode);
+        __u32 vmax_def = mode.vmax.def;
         struct vc_binning *binning = vc_core_get_binning(cam);
         __u32 vmax_res = vmax_def;
 
@@ -916,10 +940,18 @@ __u32 vc_core_get_optimized_vmax(struct vc_cam *cam, __u8 num_lanes,  __u8 forma
 
         // Increase the frame rate when image height is reduced.
         if (ctrl->flags & FLAG_INCREASE_FRAME_RATE && height < ctrl->frame.height) {
-                /* For FLAG_DOUBLE_HEIGHT sensors VMAX is in half-line units, so each
-                 * saved output line corresponds to 2 VMAX units. */
-                u32 vmax_scale = (ctrl->flags & FLAG_DOUBLE_HEIGHT) ? 2 : 1;
-                vmax_res = vmax_def - vmax_scale * (ctrl->frame.height - height);
+                __u32 scale = mode.vmax_row_scale > 0 ? mode.vmax_row_scale : 1;
+                __u32 reduction = scale * (ctrl->frame.height - height);
+                __u32 naive = (vmax_def > reduction) ? vmax_def - reduction : vmax_def;
+
+                if (mode.vmax_row_margin > 0 || mode.vmax_row_floor > 0 || mode.vmax_row_scale > 0) {
+                        __u32 real_min = height + mode.vmax_row_margin;
+                        if (mode.vmax_row_floor > real_min)
+                                real_min = mode.vmax_row_floor;
+                        vmax_res = (naive > scale * real_min) ? naive : scale * real_min;
+                } else {
+                        vmax_res = naive;
+                }
                 vc_dbg(dev, "%s(): Increased frame rate: vmax: %u \n", __FUNCTION__,
                         vmax_res);
 
@@ -1404,7 +1436,6 @@ int vc_mod_set_mode(struct vc_cam *cam, int *reset)
         char fourcc[14];
         char *stype;
         __u8 type = 0;
-        struct vc_binning *binning = vc_core_get_binning(cam);
         __u8 mode = 0;
         int ret = 0;
         bool reset_binning = false;
@@ -1435,7 +1466,7 @@ int vc_mod_set_mode(struct vc_cam *cam, int *reset)
                 stype = "EXT.TRG";
                 break;
         }
-        binning_mode = (binning->use_mod_mode) ? state->binning_mode : 0;                
+        binning_mode = (ctrl->flags & FLAG_USE_BINNING_INDEX) ? state->binning_mode : 0;
 
         if (( 0 < state->former_binning_mode ) && ( 0 == state->binning_mode) ) {
                 reset_binning = true;
@@ -1718,6 +1749,10 @@ void vc_core_calculate_roi(struct vc_cam *cam, __u32 *left, __u32 *right, __u32 
         *o_height = frame_height;
 
         if (ctrl->flags & FLAG_DOUBLE_HEIGHT) {
+                if (!((binning->h_factor == 0) || (binning->v_factor == 0))) {
+                        *o_width *= binning->h_factor;
+                        *o_height *= binning->v_factor;
+                }
                 *top *= 2;
                 *height *= 2;
                 *o_height *= 2;
@@ -1787,16 +1822,26 @@ int vc_sen_set_hmax(struct vc_cam *cam)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
-        
+
 #ifdef OVERWRITE_HMAX
         if (cam->state.hmax_overwrite < 0) {
                 return 0;
         }
-        else if (cam->state.hmax_overwrite > 0)
+        else
         {
-                return vc_sen_write_hmax(ctrl, cam->state.hmax_overwrite);
+                __u8 num_lanes = state->num_lanes;
+                __u8 format = vc_core_mbus_code_to_format(state->format_code);
+                __u8 binning = state->binning_mode;
+
+                if (cam->state.hmax_overwrite == 0) {
+                        vc_mode mode = vc_core_get_mode_by_param(cam, num_lanes, format, binning);
+                        if (mode.hmax.min == mode.hmax.max) {
+                                return 0;
+                        }
+                }
+
+                return vc_sen_write_hmax(ctrl, vc_core_get_hmax(cam, num_lanes, format, binning));
         }
-        return 0;
 #else
         return 0;
 #endif
@@ -1857,7 +1902,11 @@ int vc_sen_set_roi(struct vc_cam *cam)
                         ret |= i2c_write_reg2(dev, client, &DIG_CROP_IMAGE_HEIGHT, o_height, __FUNCTION__);
                 } 
                 ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.h_end, w_right, __FUNCTION__);
-                ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.v_end, w_bottom, __FUNCTION__);
+                if (FLAG_DOUBLE_HEIGHT == ctrl->flags & FLAG_DOUBLE_HEIGHT) {
+                        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.v_end, o_height / 2, __FUNCTION__);
+                } else {
+                        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.v_end, w_bottom, __FUNCTION__);
+                }
                 ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.w_width, w_width, __FUNCTION__);
                 ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.w_height, w_height, __FUNCTION__);
         }
@@ -2090,6 +2139,11 @@ int vc_sen_start_stream(struct vc_cam *cam)
         ret  = vc_mod_set_mode(cam, &reset);
         ret |= vc_sen_set_roi(cam);
 
+#ifdef READ_DEFAULT_REG_VALUES
+        vc_sen_read_hmax(&cam->ctrl);
+        vc_sen_read_vmax(&cam->ctrl);
+        vc_sen_read_shs(&cam->ctrl);
+#endif
 
         vc_notice(dev, "%s(): Start streaming\n", __FUNCTION__);
         vc_dbg(dev, "%s(): MM: 0x%02x, TM: 0x%02x, IO: 0x%02x\n",
@@ -2519,19 +2573,35 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
                 case REG_TRIGGER_STREAM_LEVEL:
                         vc_calculate_exposure(cam, exposure_us);
 
-                        if(state->vmax_overwrite > 0) 
+                        if(state->vmax_overwrite > 0)
                         {
+                                __u32 vmax_overwrite_clamped = state->vmax_overwrite;
+
+                                __u8 num_lanes = state->num_lanes;
+                                __u8 format = vc_core_mbus_code_to_format(state->format_code);
+                                __u8 binning = state->binning_mode;
+                                vc_mode mode = vc_core_get_mode_by_param(cam, num_lanes, format, binning);
+                                __u32 scale = mode.vmax_row_scale > 0 ? mode.vmax_row_scale : 1;
+
+                                if (mode.vmax_row_margin > 0 || mode.vmax_row_floor > 0 || mode.vmax_row_scale > 0) {
+                                        __u32 real_min = state->frame.height + mode.vmax_row_margin;
+                                        if (mode.vmax_row_floor > real_min)
+                                                real_min = mode.vmax_row_floor;
+                                        if (vmax_overwrite_clamped < scale * real_min)
+                                                vmax_overwrite_clamped = scale * real_min;
+                                }
+
                                 // Re-calculate SHS against the overwrite VMAX so exposure
                                 // is correct at the forced frame rate instead of always
                                 // writing SHS=0 (which maximizes exposure).
-                                if (state->vmax_overwrite > state->vmax) {
+                                if (vmax_overwrite_clamped > state->vmax) {
                                         // Overwrite VMAX is larger than natural VMAX: exposure
                                         // still fits, recalculate SHS to keep the same exposure.
-                                        state->shs = state->vmax_overwrite - (state->vmax - state->shs);
+                                        state->shs = vmax_overwrite_clamped - (state->vmax - state->shs);
                                 }
                                 // If overwrite VMAX <= natural VMAX the shs from
                                 // vc_calculate_exposure() is already correct.
-                                ret |= vc_sen_write_vmax(ctrl, state->vmax_overwrite);
+                                ret |= vc_sen_write_vmax(ctrl, vmax_overwrite_clamped);
                                 ret |= vc_sen_write_shs(ctrl, state->shs);
                                 ret |= vc_sen_set_hmax(cam);
 
@@ -2554,6 +2624,27 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
                 ret |= vc_sen_write_vmax(ctrl, state->vmax);
                 ret |= vc_sen_write_flash_duration(ctrl, duration);
                 ret |= vc_sen_write_flash_offset(ctrl, ctrl->flash_toffset);
+
+                switch (state->trigger_mode) {
+                case REG_TRIGGER_EXTERNAL:
+                case REG_TRIGGER_SINGLE:
+                case REG_TRIGGER_SELF:
+                {
+                        __u8 num_lanes = state->num_lanes;
+                        __u8 format = vc_core_mbus_code_to_format(state->format_code);
+                        __u8 binning = state->binning_mode;
+                        __u32 hmax = vc_core_get_hmax(cam, num_lanes, format, binning);
+                        __u32 frametime_us = ((__u64)state->vmax * hmax * 1000000) / ctrl->clk_pixel;
+
+                        state->retrigger_cnt = ((__u64)frametime_us * ctrl->clk_ext_trigger) / 1000000;
+                        if (!state->streaming || ctrl->flags & FLAG_TRIGGER_SELF_V2) {
+                                ret |= vc_mod_write_retrigger(client_mod, state->retrigger_cnt);
+                        }
+                        break;
+                }
+                default:
+                        break;
+                }
         }
 
         if (ret == 0) {

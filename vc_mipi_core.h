@@ -190,6 +190,9 @@ typedef struct vc_mode {
         vc_control vmax;
         vc_control blacklevel;
         __u32      retrigger_min;
+        __u32      vmax_row_margin;
+        __u32      vmax_row_floor;
+        __u32      vmax_row_scale;
         struct vc_reg binning_mode_regs[MAX_BINNING_MODE_REGS];
 } vc_mode;
 
