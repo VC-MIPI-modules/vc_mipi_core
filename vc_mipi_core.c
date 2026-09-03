@@ -708,6 +708,13 @@ int vc_core_set_format(struct vc_cam *cam, __u32 code)
         }
 
         state->format_code = code;
+#ifdef ENABLE_ADVANCED_CONTROL
+        /* The previous mode's HMAX does not apply to the new one:
+         * vc_core_get_hmax() returns hmax_overwrite in preference to
+         * mode.hmax.def, so a value left behind by a 12-bit session would
+         * keep a Y8 stream running at 780 instead of the 540 Y8 needs. */
+        state->hmax_overwrite = 0;
+#endif
         vc_core_update_controls(cam);
 
         return 0;
