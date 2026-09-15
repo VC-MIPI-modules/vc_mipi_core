@@ -810,6 +810,11 @@ static void vc_init_ctrl_imx568(struct vc_ctrl *ctrl, struct vc_desc* desc)
         INIT_MESSAGE("IMX568")
 
         vc_init_ctrl_imx56x_base(ctrl, desc);
+        
+        ctrl->csr.sen.d_left            = (vc_csr2) { .l = 0x3120, .m = 0x3121 };
+        ctrl->csr.sen.d_top             = (vc_csr2) { .l = 0x3122, .m = 0x3123 };
+        ctrl->csr.sen.scale             = (vc_csr2) { .l = 0x303C };
+        ctrl->csr.sen.group_hold        = (vc_csr2) { .l = 0x3034 };
 
         FRAME(0, 0, 2464, 2064)
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
