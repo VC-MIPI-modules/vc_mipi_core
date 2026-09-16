@@ -30,6 +30,9 @@ extern int debug;
 #define MOD_ID_IMX585           0x0585
 
 #define MOD_ID_IMX900           0x0900
+
+#define MOD_ID_AR2020           0x2020
+
 #define MOD_ID_OV7251           0x7251
 #define MOD_ID_OV9281           0x9281
 
