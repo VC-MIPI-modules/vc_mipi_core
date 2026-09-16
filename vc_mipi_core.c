@@ -90,6 +90,7 @@ int vc_mod_is_trigger_enabled(struct vc_cam *cam);
 int vc_mod_get_io_mode(struct vc_cam *cam);
 int vc_core_get_mode_index(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
 int vc_sen_write_binning_mode_regs(struct vc_cam *cam);
+int vc_sen_write_extra_mode_regs(struct vc_cam *cam);
 int vc_sen_write_mode(struct vc_ctrl *ctrl, int mode);
 int vc_sen_set_hmax(struct vc_cam *cam);
 int vc_sen_set_roi(struct vc_cam *cam);
@@ -401,6 +402,14 @@ static int  vc_core_fmt_to_str(__u32 code, char *buf)
                         case MEDIA_BUS_FMT_SGBRG10_1X10: sprintf(buf, "SGBRG10_1X10"); break;
                         case MEDIA_BUS_FMT_SGBRG12_1X12: sprintf(buf, "SGBRG12_1X12"); break;
                         case MEDIA_BUS_FMT_SGBRG14_1X14: sprintf(buf, "SGBRG14_1X14"); break;
+                        case MEDIA_BUS_FMT_SGRBG8_1X8:   sprintf(buf, "SGRBG8_1X8"); break;
+                        case MEDIA_BUS_FMT_SGRBG10_1X10: sprintf(buf, "SGRBG10_1X10"); break;
+                        case MEDIA_BUS_FMT_SGRBG12_1X12: sprintf(buf, "SGRBG12_1X12"); break;
+                        case MEDIA_BUS_FMT_SGRBG14_1X14: sprintf(buf, "SGRBG14_1X14"); break;
+                        case MEDIA_BUS_FMT_SBGGR8_1X8:   sprintf(buf, "SBGGR8_1X8"); break;
+                        case MEDIA_BUS_FMT_SBGGR10_1X10: sprintf(buf, "SBGGR10_1X10"); break;
+                        case MEDIA_BUS_FMT_SBGGR12_1X12: sprintf(buf, "SBGGR12_1X12"); break;
+                        case MEDIA_BUS_FMT_SBGGR14_1X14: sprintf(buf, "SBGGR14_1X14"); break;
                         default: return -EINVAL;
                 }
         return 0;
@@ -424,6 +433,14 @@ static int __maybe_unused vc_core_get_fourcc_fmt(__u32 code, char *buf, bool pac
                         case MEDIA_BUS_FMT_SGBRG10_1X10: sprintf(buf, "GB10"); break;
                         case MEDIA_BUS_FMT_SGBRG12_1X12: sprintf(buf, "GB12"); break;
                         case MEDIA_BUS_FMT_SGBRG14_1X14: sprintf(buf, "GB14"); break;
+                        case MEDIA_BUS_FMT_SGRBG8_1X8:   sprintf(buf, "GRBG"); break;
+                        case MEDIA_BUS_FMT_SGRBG10_1X10: sprintf(buf, "BA10"); break;
+                        case MEDIA_BUS_FMT_SGRBG12_1X12: sprintf(buf, "BA12"); break;
+                        case MEDIA_BUS_FMT_SGRBG14_1X14: sprintf(buf, "GR14"); break;
+                        case MEDIA_BUS_FMT_SBGGR8_1X8:   sprintf(buf, "BA81"); break;
+                        case MEDIA_BUS_FMT_SBGGR10_1X10: sprintf(buf, "BG10"); break;
+                        case MEDIA_BUS_FMT_SBGGR12_1X12: sprintf(buf, "BG12"); break;
+                        case MEDIA_BUS_FMT_SBGGR14_1X14: sprintf(buf, "BG14"); break;
                         default: return -EINVAL;
                 }
         }
@@ -442,6 +459,14 @@ static int __maybe_unused vc_core_get_fourcc_fmt(__u32 code, char *buf, bool pac
                         case MEDIA_BUS_FMT_SGBRG10_1X10: sprintf(buf, "GB10"); break;
                         case MEDIA_BUS_FMT_SGBRG12_1X12: sprintf(buf, "GB12"); break;
                         case MEDIA_BUS_FMT_SGBRG14_1X14: sprintf(buf, "GB14"); break;
+                        case MEDIA_BUS_FMT_SGRBG8_1X8:   sprintf(buf, "GRBG"); break;
+                        case MEDIA_BUS_FMT_SGRBG10_1X10: sprintf(buf, "BA10"); break;
+                        case MEDIA_BUS_FMT_SGRBG12_1X12: sprintf(buf, "BA12"); break;
+                        case MEDIA_BUS_FMT_SGRBG14_1X14: sprintf(buf, "GR14"); break;
+                        case MEDIA_BUS_FMT_SBGGR8_1X8:   sprintf(buf, "BA81"); break;
+                        case MEDIA_BUS_FMT_SBGGR10_1X10: sprintf(buf, "BG10"); break;
+                        case MEDIA_BUS_FMT_SBGGR12_1X12: sprintf(buf, "BG12"); break;
+                        case MEDIA_BUS_FMT_SBGGR14_1X14: sprintf(buf, "BG14"); break;
                         default: return -EINVAL;
                 }
 
@@ -457,34 +482,83 @@ static __u8 vc_core_mbus_code_to_format(__u32 code)
         case MEDIA_BUS_FMT_Y8_1X8:
         case MEDIA_BUS_FMT_SRGGB8_1X8:
         case MEDIA_BUS_FMT_SGBRG8_1X8:
+        case MEDIA_BUS_FMT_SGRBG8_1X8:
+        case MEDIA_BUS_FMT_SBGGR8_1X8:
                 return FORMAT_RAW08;
         case MEDIA_BUS_FMT_Y10_1X10:
         case MEDIA_BUS_FMT_SRGGB10_1X10:
         case MEDIA_BUS_FMT_SGBRG10_1X10:
+        case MEDIA_BUS_FMT_SGRBG10_1X10:
+        case MEDIA_BUS_FMT_SBGGR10_1X10:
                 return FORMAT_RAW10;
         case MEDIA_BUS_FMT_Y12_1X12:
         case MEDIA_BUS_FMT_SRGGB12_1X12:
         case MEDIA_BUS_FMT_SGBRG12_1X12:
+        case MEDIA_BUS_FMT_SGRBG12_1X12:
+        case MEDIA_BUS_FMT_SBGGR12_1X12:
                 return FORMAT_RAW12;
         case MEDIA_BUS_FMT_Y14_1X14:
         case MEDIA_BUS_FMT_SRGGB14_1X14:
         case MEDIA_BUS_FMT_SGBRG14_1X14:
+        case MEDIA_BUS_FMT_SGRBG14_1X14:
+        case MEDIA_BUS_FMT_SBGGR14_1X14:
                 return FORMAT_RAW14;
         }
         return 0;
 }
 
-static __u32 vc_core_format_to_mbus_code(__u8 format, int is_color, int is_gbrg)
+static enum vc_cfa_pattern vc_core_get_cfa_pattern(struct vc_ctrl *ctrl)
 {
+        if (ctrl->flags & FLAG_FORMAT_BGGR)
+                return VC_CFA_BGGR;
+        if (ctrl->flags & FLAG_FORMAT_GRBG)
+                return VC_CFA_GRBG;
+        if (ctrl->flags & FLAG_FORMAT_GBRG)
+                return VC_CFA_GBRG;
+        return VC_CFA_RGGB;
+}
+
+static __u32 vc_core_format_to_mbus_code(__u8 format, int is_color, enum vc_cfa_pattern cfa)
+{
+        if (!is_color) {
+                switch (format) {
+                case FORMAT_RAW08: return MEDIA_BUS_FMT_Y8_1X8;
+                case FORMAT_RAW10: return MEDIA_BUS_FMT_Y10_1X10;
+                case FORMAT_RAW12: return MEDIA_BUS_FMT_Y12_1X12;
+                case FORMAT_RAW14: return MEDIA_BUS_FMT_Y14_1X14;
+                }
+                return 0;
+        }
+
         switch (format) {
         case FORMAT_RAW08:
-                return is_color ? (is_gbrg ? MEDIA_BUS_FMT_SGBRG8_1X8 : MEDIA_BUS_FMT_SRGGB8_1X8) : MEDIA_BUS_FMT_Y8_1X8;
+                switch (cfa) {
+                case VC_CFA_GBRG: return MEDIA_BUS_FMT_SGBRG8_1X8;
+                case VC_CFA_GRBG: return MEDIA_BUS_FMT_SGRBG8_1X8;
+                case VC_CFA_BGGR: return MEDIA_BUS_FMT_SBGGR8_1X8;
+                default:          return MEDIA_BUS_FMT_SRGGB8_1X8;
+                }
         case FORMAT_RAW10:
-                return is_color ? (is_gbrg ? MEDIA_BUS_FMT_SGBRG10_1X10 : MEDIA_BUS_FMT_SRGGB10_1X10) : MEDIA_BUS_FMT_Y10_1X10;
+                switch (cfa) {
+                case VC_CFA_GBRG: return MEDIA_BUS_FMT_SGBRG10_1X10;
+                case VC_CFA_GRBG: return MEDIA_BUS_FMT_SGRBG10_1X10;
+                case VC_CFA_BGGR: return MEDIA_BUS_FMT_SBGGR10_1X10;
+                default:          return MEDIA_BUS_FMT_SRGGB10_1X10;
+                }
         case FORMAT_RAW12:
-                return is_color ? (is_gbrg ? MEDIA_BUS_FMT_SGBRG12_1X12 : MEDIA_BUS_FMT_SRGGB12_1X12) : MEDIA_BUS_FMT_Y12_1X12;
+                switch (cfa) {
+                case VC_CFA_GBRG: return MEDIA_BUS_FMT_SGBRG12_1X12;
+                case VC_CFA_GRBG: return MEDIA_BUS_FMT_SGRBG12_1X12;
+                case VC_CFA_BGGR: return MEDIA_BUS_FMT_SBGGR12_1X12;
+                default:          return MEDIA_BUS_FMT_SRGGB12_1X12;
+                }
         case FORMAT_RAW14:
-                return is_color ? (is_gbrg ? MEDIA_BUS_FMT_SGBRG14_1X14 : MEDIA_BUS_FMT_SRGGB14_1X14) : MEDIA_BUS_FMT_Y14_1X14;
+                switch (cfa) {
+                case VC_CFA_GBRG: return MEDIA_BUS_FMT_SGBRG14_1X14;
+                case VC_CFA_GRBG: return MEDIA_BUS_FMT_SGRBG14_1X14;
+                case VC_CFA_BGGR: return MEDIA_BUS_FMT_SBGGR14_1X14;
+                default:          return MEDIA_BUS_FMT_SRGGB14_1X14;
+                }
         }
         return 0;
 }
@@ -635,8 +709,8 @@ static __u32 vc_core_get_default_format(struct vc_cam *cam)
         struct vc_ctrl *ctrl = &cam->ctrl;
         __u8 format = desc->modes[0].format;
         int is_color = cam->force_color_mode ? 1 : vc_mod_is_color_sensor(desc);
-        int is_bgrg = ctrl->flags & FLAG_FORMAT_GBRG;
-        return vc_core_format_to_mbus_code(format, is_color, is_bgrg);
+        enum vc_cfa_pattern cfa = vc_core_get_cfa_pattern(ctrl);
+        return vc_core_format_to_mbus_code(format, is_color, cfa);
 }
 
 void vc_core_update_mbus_codes(struct vc_cam *cam) 
@@ -645,12 +719,12 @@ void vc_core_update_mbus_codes(struct vc_cam *cam)
         struct vc_desc *desc = &cam->desc;
         struct device *dev = vc_core_get_sen_device(cam);
         int is_color = cam->force_color_mode ? 1 : vc_mod_is_color_sensor(desc);
-        int is_bgrg = ctrl->flags & FLAG_FORMAT_GBRG;
+        enum vc_cfa_pattern cfa = vc_core_get_cfa_pattern(ctrl);
         int modeIx, codeIx;
 
         for (modeIx = 0; modeIx < desc->num_modes; modeIx++) {
                 struct vc_desc_mode *mode = &desc->modes[modeIx];
-                __u32 code = vc_core_format_to_mbus_code(mode->format, is_color, is_bgrg);
+                __u32 code = vc_core_format_to_mbus_code(mode->format, is_color, cfa);
                 vc_dbg(dev, "%s(): Checking mode %u (code: 0x%04x)\n", __FUNCTION__, modeIx, code);
 
                 for (codeIx = 0; codeIx < ARRAY_SIZE(ctrl->mbus_codes); codeIx++) {
@@ -707,6 +781,11 @@ int vc_core_set_format(struct vc_cam *cam, __u32 code)
                  return -EINVAL;
         }
 
+        if (state->format_code != code) {
+                state->hmax_overwrite = 0;
+                state->vmax_overwrite = 0;
+        }
+
         state->format_code = code;
         vc_core_update_controls(cam);
 
@@ -732,6 +811,8 @@ static void vc_core_limit_frame_position(struct vc_cam *cam, __u32 left, __u32 t
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
+        struct vc_desc *desc = &cam->desc;
+        int is_color = cam->force_color_mode ? 1 : vc_mod_is_color_sensor(desc);
 
         if (left > ctrl->frame.width - state->frame.width) {
                 state->frame.left = ctrl->frame.width - state->frame.width;
@@ -744,12 +825,26 @@ static void vc_core_limit_frame_position(struct vc_cam *cam, __u32 left, __u32 t
         } else {
                 state->frame.top = top;
         }
+
+        // Round down to the sensor's required vertical crop alignment, if
+        // any -- see ctrl->crop_top_step in vc_mipi_core.h. Only relevant for
+        // a Bayer/CFA (colour) output, so a mono stream (e.g. IMX568's mono
+        // variant, or any sensor without force_color_mode) is left
+        // unconstrained even though the field is non-zero for its
+        // descriptor. Applied after the bounds clamp above so it can only
+        // move the offset down (towards 0), never back out of the valid
+        // range.
+        if (is_color && ctrl->crop_top_step > 1) {
+                state->frame.top -= state->frame.top % ctrl->crop_top_step;
+        }
 }
 
 static void vc_core_limit_frame_size(struct vc_cam *cam, __u32 width, __u32 height)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
+        struct vc_desc *desc = &cam->desc;
+        int is_color = cam->force_color_mode ? 1 : vc_mod_is_color_sensor(desc);
 
         if (width > ctrl->frame.width) {
                 state->frame.width = ctrl->frame.width;
@@ -761,6 +856,16 @@ static void vc_core_limit_frame_size(struct vc_cam *cam, __u32 width, __u32 heig
                 state->frame.height = ctrl->frame.height;
         } else {
                 state->frame.height = height;
+        }
+
+        // Same vertical alignment requirement as crop_top_step, applied here
+        // to the crop height so the last readout row is always a complete
+        // Bayer pair instead of a truncated one. Same is_color gating as
+        // above -- mono streams are unconstrained. Rounds down (after the
+        // max-height clamp above), so this never grows the crop past what
+        // was requested or past ctrl->frame.height.
+        if (is_color && ctrl->crop_top_step > 1) {
+                state->frame.height -= state->frame.height % ctrl->crop_top_step;
         }
 }
 
@@ -1808,6 +1913,34 @@ int vc_sen_write_binning_mode_regs(struct vc_cam *cam)
         return ret;
 }
 
+// Unlike vc_sen_write_binning_mode_regs(), applied whenever the current
+// (num_lanes, format, binning) mode is selected, regardless of binning_mode
+// or FLAG_USE_BINNING_INDEX -- for mode-specific register writes that aren't
+// binning settings (see vc_mode.extra_regs in vc_mipi_core.h).
+int vc_sen_write_extra_mode_regs(struct vc_cam *cam)
+{
+        struct vc_ctrl *ctrl = &cam->ctrl;
+        struct vc_state *state = &cam->state;
+        struct device *dev = &ctrl->client_sen->dev;
+        struct i2c_client *client = ctrl->client_sen;
+        __u8 format = vc_core_mbus_code_to_format(state->format_code);
+        int mode_index;
+        int iTmp = 0;
+        int ret = 0;
+
+        mode_index = vc_core_get_mode_index(cam, state->num_lanes, format, state->binning_mode);
+        if (mode_index < 0)
+                return 0;
+
+        while (ctrl->mode[mode_index].extra_regs[iTmp].address > 0) {
+                ret |= i2c_write_reg(dev, client, ctrl->mode[mode_index].extra_regs[iTmp].address,
+                                     ctrl->mode[mode_index].extra_regs[iTmp].value, __FUNCTION__);
+                iTmp++;
+        }
+
+        return ret;
+}
+
 static int vc_sen_write_hmax(struct vc_ctrl *ctrl, __u32 hmax)
 {
         struct i2c_client *client = ctrl->client_sen;
@@ -1902,7 +2035,7 @@ int vc_sen_set_roi(struct vc_cam *cam)
                         ret |= i2c_write_reg2(dev, client, &DIG_CROP_IMAGE_HEIGHT, o_height, __FUNCTION__);
                 } 
                 ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.h_end, w_right, __FUNCTION__);
-                if (FLAG_DOUBLE_HEIGHT == ctrl->flags & FLAG_DOUBLE_HEIGHT) {
+                if (FLAG_DOUBLE_HEIGHT == (ctrl->flags & FLAG_DOUBLE_HEIGHT)) {
                         ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.v_end, o_height / 2, __FUNCTION__);
                 } else {
                         ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.v_end, w_bottom, __FUNCTION__);
@@ -2021,7 +2154,8 @@ int vc_sen_set_gain(struct vc_cam *cam, __u64 gain, bool unit_is_mdB)
         int again_mdB = 0, again_times = 0, again_fraction = 0, again = 0;
         int dgain_mdB = 0, dgain_times = 0, dgain = 0;
         int ret = 0;
-
+       
+        
         if (unit_is_mdB) {
                 gain_mdB = gain;
         } else {
@@ -2081,12 +2215,14 @@ int vc_sen_set_gain(struct vc_cam *cam, __u64 gain, bool unit_is_mdB)
                 dgain = ctrl->dgain.max;
         }
 
-        vc_dbg(dev, "%s(): gain:%llu %s, again:%ux/%u/%u, dgain:%ux/%u/%u\n", __FUNCTION__, 
+        vc_dbg(dev, "%s(): gain:%llu %s, again:%ux/%u/%u, dgain:%ux/%u/%u\n", __FUNCTION__,
                 gain, unit_is_mdB?"mdB":"times", again_times, again, ctrl->again.max, dgain_times, dgain, ctrl->dgain.max);
-        vc_notice(dev, "%s(): Set sensor gain: %u mdB (exposure: %u us)\n", __FUNCTION__, 
+        vc_notice(dev, "%s(): Set sensor gain: %u mdB (exposure: %u us)\n", __FUNCTION__,
                 gain_mdB, cam->state.exposure);
 
+       
         ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.again, again, __FUNCTION__);
+        
         ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.dgain, dgain, __FUNCTION__);
         if (ret) {
                 vc_err(dev, "%s(): Couldn't set gain (error: %d)\n", __FUNCTION__, ret);
@@ -2138,6 +2274,7 @@ int vc_sen_start_stream(struct vc_cam *cam)
 
         ret  = vc_mod_set_mode(cam, &reset);
         ret |= vc_sen_set_roi(cam);
+        ret |= vc_sen_write_extra_mode_regs(cam);
 
 #ifdef READ_DEFAULT_REG_VALUES
         vc_sen_read_hmax(&cam->ctrl);
@@ -2153,7 +2290,7 @@ int vc_sen_start_stream(struct vc_cam *cam)
                 vc_sen_stop_stream(cam);
         }
 
-        if ((ctrl->flags & FLAG_EXPOSURE_SONY || ctrl->flags & FLAG_EXPOSURE_NORMAL) || 
+        if ((ctrl->flags & FLAG_EXPOSURE_SONY || ctrl->flags & FLAG_EXPOSURE_NORMAL) ||
             (ctrl->flags & FLAG_EXPOSURE_OMNIVISION && !vc_mod_is_trigger_enabled(cam))) {
         ret |= vc_sen_write_mode(ctrl, ctrl->csr.sen.mode_operating);
         if (ret)
@@ -2250,13 +2387,12 @@ static __u64 vc_core_calculate_exposure_1H(struct vc_cam *cam, __u8 num_lanes, _
 __u32 vc_core_get_time_per_line_ns(struct vc_cam *cam)
 {
         struct vc_state *state = &cam->state;
-        struct vc_ctrl *ctrl = &cam->ctrl;
         __u8 num_lanes = state->num_lanes;
         __u8 format = vc_core_mbus_code_to_format(state->format_code);
         __u8 binning = state->binning_mode;
         __u64 hmax = cam->state.hmax_overwrite > 0 ? cam->state.hmax_overwrite :  vc_core_get_hmax(cam, num_lanes, format, binning);
 
-        return (hmax * 1000000000) / ctrl->clk_pixel;
+        return (hmax * 1000000000) / cam->ctrl.clk_pixel;
 }
 EXPORT_SYMBOL(vc_core_get_time_per_line_ns);
 
@@ -2415,12 +2551,11 @@ static void vc_calculate_exposure_normal(struct vc_cam *cam, __u64 exposure_1H)
         __u32 shs_min = vc_core_get_vmax(cam, num_lanes, format, binning).min;
         __u32 vmax_max;
 
-        // OmniVision sensors require exposure <= VTS - 25 rows for readout overhead
-        if (ctrl->flags & FLAG_EXPOSURE_OMNIVISION) {
-                vmax_max = state->vmax > 25 ? state->vmax - 25 : state->vmax;
-        } else {
-                vmax_max = state->vmax;
-        }
+        
+        vmax_max = state->vmax > ctrl->vmax_exposure_margin
+                               ? state->vmax - ctrl->vmax_exposure_margin
+                               : state->vmax;
+        
 
         // Is exposure time greater than shs_min and less than frame time?
         if (shs_min <= exposure_1H && exposure_1H < vmax_max) {
@@ -2438,18 +2573,15 @@ static void vc_calculate_exposure_normal(struct vc_cam *cam, __u64 exposure_1H)
                 state->shs = shs_min;
 
         } else {
-                // Exposure longer than available frame time
+                // Exposure longer than available frame time -- grow VMAX to
+                // fit it plus this sensor's margin (same formula regardless
+                // of which of the two exposure flags is set; only the
+                // steady-state cutoff above actually differs between them).
                 // |                 VMAX (frame time)                   ---> |
                 // +----------------------------------------------------------+
                 // |                                       exposure time ---> |
-                if (ctrl->flags & FLAG_EXPOSURE_OMNIVISION) {
-                        // For OmniVision: extend vmax to fit exposure + 25 rows overhead
-                        state->vmax = exposure_1H + 25;
-                        state->shs = exposure_1H;
-                } else {
-                        state->vmax = exposure_1H;
-                        state->shs = exposure_1H;
-                }
+                state->vmax = exposure_1H + ctrl->vmax_exposure_margin;
+                state->shs = exposure_1H;
         }
 }
 

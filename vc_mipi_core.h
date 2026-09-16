@@ -43,6 +43,19 @@ extern int debug;
 #define FLAG_PREGIUS_S                  (1 << 18)
 #define FLAG_USE_BINNING_INDEX          (1 << 19)
 
+
+
+#define FLAG_EXPOSURE_ONSEMI            (1 <<  20)
+#define FLAG_FORMAT_GRBG                (1 <<  21)
+#define FLAG_FORMAT_BGGR                (1 <<  22)
+
+enum vc_cfa_pattern {
+        VC_CFA_RGGB = 0,
+        VC_CFA_GBRG,
+        VC_CFA_GRBG,
+        VC_CFA_BGGR,
+};
+
 #define GAIN_DISABLED                   0
 #define GAIN_LINEAR                     1
 #define GAIN_LOGARITHMIC                2
@@ -56,6 +69,7 @@ extern int debug;
 
 #define MAX_VC_MODES                    16
 #define MAX_BINNING_MODE_REGS           16
+#define MAX_EXTRA_MODE_REGS             8
 
 #define MAX_MBUS_CODES                  5
 #define MAX_VC_DESC_MODES               24
@@ -194,6 +208,24 @@ typedef struct vc_mode {
         __u32      vmax_row_floor;
         __u32      vmax_row_scale;
         struct vc_reg binning_mode_regs[MAX_BINNING_MODE_REGS];
+        // Extra registers written unconditionally whenever this mode is
+        // selected (unlike binning_mode_regs, not gated on binning_mode > 0 /
+        // FLAG_USE_BINNING_INDEX) -- for mode-specific sensor config that
+        // isn't itself a binning setting, e.g. AR2020's eDR-mode CSI2 data
+        // type tag (see vc_sen_write_extra_mode_regs() in vc_mipi_core.c).
+        struct vc_reg extra_regs[MAX_EXTRA_MODE_REGS];
+        // Set true for modes where the sensor's analogue gain register is
+        // silently ignored by hardware (e.g. AR2020's eDR/HDR mode -- its
+        // own datasheet states "Gain for eDR mode is not supported. 0 dB is
+        // always used as the default gain. It is recommended that the user
+        // uses ISP gain in eDR mode"). vc_sen_set_gain() skips writing the
+        // again register for such modes, and vc_mipi_camera.c clamps the
+        // live V4L2_CID_ANALOGUE_GAIN control's range to 0 so libcamera's
+        // AGC doesn't waste its adjustment budget on a control that does
+        // nothing on real hardware -- confirmed this was the root cause of
+        // an AGC runaway (gain climbing unboundedly to its ceiling every
+        // frame, never converging) during this mode's use as the low-res
+        // viewfinder stage.
 } vc_mode;
 
 typedef struct vc_binning {
@@ -280,6 +312,7 @@ struct vc_ctrl {
         // Controls
         struct vc_mode mode[MAX_VC_MODES];
         struct vc_control exposure;
+
         struct vc_gain again;
         struct vc_gain dgain;
         struct vc_control framerate;
@@ -298,6 +331,9 @@ struct vc_ctrl {
         // Flash
         __u32 flash_factor;
         __s32 flash_toffset;
+        // Cropping and exposure related registers
+        __u32 vmax_exposure_margin;
+        __u32 crop_top_step;
         // Special features
         __u32 flags;
         __u32 mbus_codes[MAX_MBUS_CODES];

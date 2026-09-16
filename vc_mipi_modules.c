@@ -61,6 +61,20 @@ int debug = 3;
                 } while (0); \
         }
 
+// Like BINNING_MODE_REGS, but written unconditionally whenever this mode is
+// selected (see vc_mode.extra_regs / vc_sen_write_extra_mode_regs()).
+#define EXTRA_MODE_REGS(_mode, ...) \
+        if (MAX_VC_MODES > _mode) { \
+                do { \
+                        const struct vc_reg _extra_mode_regs [] = { __VA_ARGS__ }; \
+                        int ers = 0; \
+                        ers = sizeof(_extra_mode_regs) / sizeof(vc_reg); \
+                                if (MAX_EXTRA_MODE_REGS > ers) { \
+                                        memcpy(&ctrl->mode[_mode].extra_regs, _extra_mode_regs, sizeof(_extra_mode_regs)); \
+                                } \
+                } while (0); \
+        }
+
 
 int vc_mod_is_color_sensor(struct vc_desc *desc)
 {
@@ -78,6 +92,12 @@ static void vc_init_ctrl(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         ctrl->exposure                  = (vc_control) { .min =   1, .max = 100000000, .def =  10000 };
         ctrl->framerate                 = (vc_control) { .min =   0, .max =   1000000, .def =      0 };
+        // Default: no margin (SHS == VMAX allowed), preserving every existing
+        // sensor's prior behaviour -- see the field comment in vc_mipi_core.h.
+        ctrl->vmax_exposure_margin      = 0;
+        // Default: no vertical crop alignment constraint -- see the field
+        // comment in vc_mipi_core.h. AR2020 sets 2.
+        ctrl->crop_top_step             = 1;
 
         ctrl->csr.sen.mode              = (vc_csr2) { .l = desc->csr_mode, .m = 0x0000 };
 
@@ -1149,7 +1169,6 @@ static void vc_init_ctrl_imx900(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         FRAME(0, 0, 2048, 1536)
 
-        // hmax/vmax defaults and VMAX_MARGIN derivation: internal_docs/hmax_vmax_derivations.md#imx900
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
         //                      mode           min       max    def   max   def
         MODE( 0, 2, FORMAT_RAW08, 0,     571,   99, 0xffffff, 1794,   255,  15,    563060)
@@ -1212,6 +1231,9 @@ static void vc_init_ctrl_ov7251(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         ctrl->flags                     = FLAG_EXPOSURE_OMNIVISION;
         ctrl->flags                    |= FLAG_IO_ENABLED;
+        // Prior shared hardcoded value, unchanged -- see the field comment
+        // in vc_mipi_core.h.
+        ctrl->vmax_exposure_margin      = 25;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1261,8 +1283,63 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->flags                    |= FLAG_IO_ENABLED;
         ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL;
         ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
+        ctrl->vmax_exposure_margin      = 25;
 }
 
+
+// ------------------------------------------------------------------------------------------------
+//  Settings for AR2020 (Rev.01)
+//  20 MegaPixel Rolling shutter
+
+static void vc_init_ctrl_ar2020(struct vc_ctrl *ctrl, struct vc_desc* desc)
+{
+        INIT_MESSAGE("AR2020")
+
+
+        ctrl->clk_pixel                 = desc->clk_pixel * 8;
+
+        ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x0343, .m = 0x0342, .h = 0x0000, .u = 0x0000 };
+        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x0341, .m = 0x0340, .h = 0x0000, .u = 0x0000 };
+
+
+        ctrl->exposure                  = (vc_control) { .min = 146, .max =    595000, .def =   1000 };
+
+        AGAIN_LIN(80, 30000)
+
+        FRAME(0, 0, 5120, 3840)
+        // All read out      binning   hmax    hmax     hmax  vmax      vmax   vmax  blkl  blkl  retrigger
+        //                      mode   min      max      def   min       max    def   max   def
+        //
+       
+        MODE_HMAX( 0, 4, FORMAT_RAW08, 0,   20000,  0xffff, 20000,    4,   0xffff,  3870,    0,    0,         0)
+        MODE_HMAX( 1, 4, FORMAT_RAW10, 0,   20000,  0xffff, 20000,    4,   0xffff,  3870,    0,    0,         0)
+        MODE_HMAX( 2, 4, FORMAT_RAW12, 0,   25200,   25200, 25200,    4,   0xffff,  3870,    0,    0,         0)
+        MODE_HMAX( 3, 2, FORMAT_RAW08, 0,   44800,   44800, 44800,    4,   0xffff,  3870,    0,    0,         0)
+        MODE_HMAX( 4, 2, FORMAT_RAW10, 0,   44800,   44800, 44800,    4,   0xffff,  3870,    0,    0,         0)
+        MODE_HMAX( 5, 2, FORMAT_RAW12, 0,   44800,   44800, 44800,    4,   0xffff,  3870,    0,    0,         0)
+
+        VMAX_MARGIN(0, 1, 0, 3870)
+        VMAX_MARGIN(1, 1, 0, 3870)
+        VMAX_MARGIN(2, 1, 0, 3870)
+        VMAX_MARGIN(3, 1, 0, 3870)
+        VMAX_MARGIN(4, 1, 0, 3870)
+        VMAX_MARGIN(5, 1, 0, 3870)
+
+      
+        EXTRA_MODE_REGS(2, { 0x0342, 0x62 }, { 0x0343, 0x70 }, { 0x0220, 0x00 })
+        EXTRA_MODE_REGS(5, { 0x0220, 0x00 })
+
+        ctrl->flags                     = FLAG_EXPOSURE_NORMAL;
+        ctrl->flags                    |= FLAG_IO_ENABLED;
+
+        ctrl->vmax_exposure_margin      = 4;
+       // ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL; 
+        ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
+        ctrl->flags                    |= FLAG_FORMAT_GRBG;
+        
+        ctrl->crop_top_step             = 2;
+
+}
 
 int vc_mod_ctrl_init(struct vc_ctrl* ctrl, struct vc_desc* desc)
 {
@@ -1296,6 +1373,7 @@ int vc_mod_ctrl_init(struct vc_ctrl* ctrl, struct vc_desc* desc)
         case MOD_ID_IMX900: vc_init_ctrl_imx900(ctrl, desc); break;
         case MOD_ID_OV7251: vc_init_ctrl_ov7251(ctrl, desc); break;
         case MOD_ID_OV9281: vc_init_ctrl_ov9281(ctrl, desc); break;
+        case MOD_ID_AR2020: vc_init_ctrl_ar2020(ctrl, desc); break;
         default:
                 vc_err(dev, "%s(): Detected module not supported!\n", __FUNCTION__);
                 return 1;
