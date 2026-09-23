@@ -1531,6 +1531,25 @@ static __u32 vc_sen_read_shs(struct vc_ctrl *ctrl)
 }
 #endif
 
+/* The sensor power can be switched off outside of this driver (e.g. by the
+ * carrier board after stream stop). The module then boots with its defaults
+ * and the cached state no longer matches the hardware. Detect this by checking
+ * that the module still reports a ready sensor and the mode we programmed. */
+static bool vc_mod_lost_state(struct vc_cam *cam)
+{
+        struct i2c_client *client = cam->ctrl.client_mod;
+        struct device *dev = &client->dev;
+        int status, mode;
+
+        status = i2c_read_reg(dev, client, MOD_REG_STATUS, __FUNCTION__);
+        mode = i2c_read_reg(dev, client, MOD_REG_MODE, __FUNCTION__);
+
+        vc_dbg(dev, "%s(): status: 0x%02x, mode: %d (expected: %u)\n", __FUNCTION__,
+                status, mode, cam->state.mode);
+
+        return status != REG_STATUS_READY || mode != cam->state.mode;
+}
+
 int vc_mod_set_mode(struct vc_cam *cam, int *reset)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
@@ -1582,6 +1601,10 @@ int vc_mod_set_mode(struct vc_cam *cam, int *reset)
         state->former_binning_mode = state->binning_mode;
 
         mode = vc_mod_find_mode(cam, num_lanes, format, type, binning_mode);
+        if (mode == state->mode && vc_mod_lost_state(cam)) {
+                vc_notice(dev, "%s(): Module was power cycled, reinitializing\n", __FUNCTION__);
+                state->mode = 0xff;
+        }
         if ( (mode == state->mode) && (!(ctrl->flags & FLAG_RESET_ALWAYS) && (type == MODE_TYPE_STREAM) && !reset_binning)) {
                 vc_dbg(dev, "%s(): Module mode %u need not to be set!\n", __FUNCTION__, mode);
                 *reset = 0;
