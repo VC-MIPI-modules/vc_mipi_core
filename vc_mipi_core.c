@@ -5,6 +5,10 @@
 #include <linux/errno.h>
 #include <linux/v4l2-mediabus.h>
 #include  <linux/kernel.h>
+#include <linux/debugfs.h>
+#include <linux/vmalloc.h>
+#include <linux/mutex.h>
+#include <linux/ktime.h>
 #include "vc_mipi_modules.h"
 
 #ifdef MODULE
@@ -65,6 +69,108 @@ int debug = 3;
 // Global variables
 
 
+
+// ------------------------------------------------------------------------------------------------
+// Dedicated I2C transaction log (debugfs, off by default)
+//
+// Independent of the general "debug" verbosity level: every i2c_read_reg()/i2c_write_reg()
+// call is recorded here (device, register address, value, direction) when enabled, so a full
+// read/write trace can be captured without also enabling the noisy general debug log.
+//
+// /sys/kernel/debug/vc_mipi_i2c/enable - write 1/0 to turn logging on/off (default: off)
+// /sys/kernel/debug/vc_mipi_i2c/log    - read to dump the captured trace
+// /sys/kernel/debug/vc_mipi_i2c/clear  - write anything to clear the trace
+
+#define VC_I2C_LOG_BUF_SIZE (64 * 1024)
+
+static bool vc_i2c_log_enabled;
+static char *vc_i2c_log_buf;
+static size_t vc_i2c_log_len;
+static DEFINE_MUTEX(vc_i2c_log_lock);
+static struct debugfs_blob_wrapper vc_i2c_log_blob;
+static struct dentry *vc_i2c_debugfs_dir;
+
+static void vc_i2c_log(struct i2c_client *client, const char *func, bool is_write,
+        __u16 addr, __u8 value, bool ok)
+{
+        char line[160];
+        u64 sec;
+        u32 ns;
+        int n;
+
+        if (!vc_i2c_log_enabled || !vc_i2c_log_buf)
+                return;
+
+        sec = ktime_get_real_ns();
+        ns = do_div(sec, NSEC_PER_SEC);
+
+        n = scnprintf(line, sizeof(line),
+                "[%llu.%06u] %s(): %s dev=%s addr=0x%02x reg=0x%04x value=0x%02x%s\n",
+                sec, ns / 1000, func, is_write ? "WRITE" : "READ",
+                dev_name(&client->dev), client->addr, addr, value,
+                ok ? "" : " FAILED");
+        if (n <= 0)
+                return;
+
+        mutex_lock(&vc_i2c_log_lock);
+        if (vc_i2c_log_len + n >= VC_I2C_LOG_BUF_SIZE)
+                vc_i2c_log_len = 0;
+        memcpy(vc_i2c_log_buf + vc_i2c_log_len, line, n);
+        vc_i2c_log_len += n;
+        vc_i2c_log_blob.size = vc_i2c_log_len;
+        mutex_unlock(&vc_i2c_log_lock);
+}
+
+static ssize_t vc_i2c_log_clear_write(struct file *file, const char __user *buf,
+        size_t count, loff_t *ppos)
+{
+        mutex_lock(&vc_i2c_log_lock);
+        vc_i2c_log_len = 0;
+        vc_i2c_log_blob.size = 0;
+        if (vc_i2c_log_buf)
+                vc_i2c_log_buf[0] = '\0';
+        mutex_unlock(&vc_i2c_log_lock);
+
+        return count;
+}
+
+static const struct file_operations vc_i2c_log_clear_fops = {
+        .owner = THIS_MODULE,
+        .open = simple_open,
+        .write = vc_i2c_log_clear_write,
+        .llseek = default_llseek,
+};
+
+static int __init vc_i2c_log_debugfs_init(void)
+{
+        vc_i2c_log_buf = vzalloc(VC_I2C_LOG_BUF_SIZE);
+        if (!vc_i2c_log_buf)
+                return -ENOMEM;
+
+        vc_i2c_log_blob.data = vc_i2c_log_buf;
+        vc_i2c_log_blob.size = 0;
+
+        vc_i2c_debugfs_dir = debugfs_create_dir("vc_mipi_i2c", NULL);
+        if (IS_ERR_OR_NULL(vc_i2c_debugfs_dir)) {
+                pr_warn("vc_mipi_core: failed to create debugfs directory, i2c logging unavailable\n");
+                vc_i2c_debugfs_dir = NULL;
+                return 0;
+        }
+
+        debugfs_create_bool("enable", 0644, vc_i2c_debugfs_dir, &vc_i2c_log_enabled);
+        debugfs_create_blob("log", 0444, vc_i2c_debugfs_dir, &vc_i2c_log_blob);
+        debugfs_create_file("clear", 0200, vc_i2c_debugfs_dir, NULL, &vc_i2c_log_clear_fops);
+
+        return 0;
+}
+
+static void vc_i2c_log_debugfs_exit(void)
+{
+        debugfs_remove_recursive(vc_i2c_debugfs_dir);
+        vc_i2c_debugfs_dir = NULL;
+        vfree(vc_i2c_log_buf);
+        vc_i2c_log_buf = NULL;
+}
 
 // ------------------------------------------------------------------------------------------------
 // Function prototypes
@@ -134,10 +240,12 @@ static int i2c_read_reg(struct device *dev, struct i2c_client *client, const __u
         ret = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
         if (ret < 0) {
                 vc_err(&client->dev, "%s(): Reading register 0x%04x from 0x%02x failed\n", func, addr, client->addr);
+                vc_i2c_log(client, func, false, addr, 0, false);
                 return ret;
         }
 
         vc_reg(dev, "%s():   addr: 0x%04x => value: 0x%02x\n", func, addr, buf[0]);
+        vc_i2c_log(client, func, false, addr, buf[0], true);
 
         return buf[0];
 }
@@ -159,6 +267,8 @@ static int i2c_write_reg(struct device *dev, struct i2c_client *client, const __
         tx[1] = addr & 0xff;
         tx[2] = value;
         ret = i2c_transfer(adap, &msg, 1);
+
+        vc_i2c_log(client, func, true, addr, value, ret == 1);
 
         return ret == 1 ? 0 : -EIO;
 }
@@ -2816,6 +2926,13 @@ EXPORT_SYMBOL(vc_sen_set_exposure);
 #ifdef MODULE
 module_param(debug, int, 0644);
 MODULE_PARM_DESC(debug, "Debug level (0-6)");
+
+module_param_named(i2c_log, vc_i2c_log_enabled, bool, 0644);
+MODULE_PARM_DESC(i2c_log, "Enable the dedicated I2C transaction log from module load (default: off). "
+        "Same switch as /sys/kernel/debug/vc_mipi_i2c/enable, settable here so probe-time writes are captured too.");
+
+module_init(vc_i2c_log_debugfs_init);
+module_exit(vc_i2c_log_debugfs_exit);
 
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("VC MIPI Core Module");
