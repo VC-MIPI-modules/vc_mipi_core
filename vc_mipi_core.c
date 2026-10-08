@@ -218,6 +218,27 @@ __u32 vc_core_get_retrigger(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u
 #define M_BYTE(value) (__u8)((value >>  8) & 0xff)
 #define L_BYTE(value) (__u8)((value >>  0) & 0xff)
 
+// Mask for a value with the given bit length (0 = no limit)
+#define CSR_MASK(length) (((length) == 0 || (length) >= 32) ? 0xffffffff : ((1U << (length)) - 1))
+
+static int csr_check_value(struct device *dev, __u32 value, __u8 offset, __u8 length, __u8 width, const char *func)
+{
+        __u8 bits = length ? length : width - offset;
+
+        if (offset >= width || offset + bits > width) {
+                vc_err(dev, "%s(): Invalid register definition (offset: %u, length: %u, width: %u)\n",
+                        func, offset, length, width);
+                return -EINVAL;
+        }
+        if (value & ~CSR_MASK(bits)) {
+                vc_err(dev, "%s(): Value 0x%08x exceeds %u bit range (max: 0x%08x)\n",
+                        func, value, bits, CSR_MASK(bits));
+                return -EINVAL;
+        }
+
+        return 0;
+}
+
 static int i2c_read_reg(struct device *dev, struct i2c_client *client, const __u16 addr, const char* func)
 {
         __u8 buf[2] = { addr >> 8, addr & 0xff };
@@ -299,17 +320,42 @@ static __u32 i2c_read_reg2(struct device *dev, struct i2c_client *client, struct
         if (reg)
                 value |= (0x000000ff & reg) <<  8;
 
-        return value;
+        return (value >> csr->offset) & CSR_MASK(csr->length);
 }
 
-static int i2c_write_reg2(struct device *dev, struct i2c_client *client, struct vc_csr2 *csr, const __u16 value, const char* func)
+// Writes one byte of a combined register. With preserve set, the bits outside of mask are
+// kept by reading the register first. Bytes that do not contain any value bits are skipped.
+static int i2c_write_reg_masked(struct device *dev, struct i2c_client *client, const __u16 addr,
+        const __u8 value, const __u8 mask, const bool preserve, const char *func)
 {
+        int old;
+
+        if (!preserve || mask == 0xff)
+                return i2c_write_reg(dev, client, addr, value, func);
+        if (mask == 0x00)
+                return 0;
+
+        old = i2c_read_reg(dev, client, addr, func);
+        if (old < 0)
+                return old;
+
+        return i2c_write_reg(dev, client, addr, (old & ~mask) | (value & mask), func);
+}
+
+static int i2c_write_reg2(struct device *dev, struct i2c_client *client, struct vc_csr2 *csr, const __u32 value, const char* func)
+{
+        __u32 reg, mask;
         int ret = 0;
 
+        if (csr_check_value(dev, value, csr->offset, csr->length, 16, func))
+                return -EINVAL;
+        reg = value << csr->offset;
+        mask = CSR_MASK(csr->length ? csr->length : 16 - csr->offset) << csr->offset;
+
         if (csr->l)
-                ret  = i2c_write_reg(dev, client, csr->l, L_BYTE(value), func);
+                ret  = i2c_write_reg_masked(dev, client, csr->l, L_BYTE(reg), L_BYTE(mask), csr->preserve, func);
         if (csr->m)
-                ret |= i2c_write_reg(dev, client, csr->m, M_BYTE(value), func);
+                ret |= i2c_write_reg_masked(dev, client, csr->m, M_BYTE(reg), M_BYTE(mask), csr->preserve, func);
 
         return ret;
 }
@@ -333,22 +379,28 @@ static __u32 i2c_read_reg4(struct device *dev, struct i2c_client *client, struct
         if (reg)
                 value |= (0x000000ff & reg) << 24;
 
-        return value;
+        return (value >> csr->offset) & CSR_MASK(csr->length);
 }
 #endif
 
 static int i2c_write_reg4(struct device *dev, struct i2c_client *client, struct vc_csr4 *csr, const __u32 value, const char *func)
 {
+        __u32 reg, mask;
         int ret = 0;
 
+        if (csr_check_value(dev, value, csr->offset, csr->length, 32, func))
+                return -EINVAL;
+        reg = value << csr->offset;
+        mask = CSR_MASK(csr->length ? csr->length : 32 - csr->offset) << csr->offset;
+
         if (csr->l)
-                ret = i2c_write_reg(dev, client, csr->l, L_BYTE(value), func);
+                ret = i2c_write_reg_masked(dev, client, csr->l, L_BYTE(reg), L_BYTE(mask), csr->preserve, func);
         if (csr->m)
-                ret |= i2c_write_reg(dev, client, csr->m, M_BYTE(value), func);
+                ret |= i2c_write_reg_masked(dev, client, csr->m, M_BYTE(reg), M_BYTE(mask), csr->preserve, func);
         if (csr->h)
-                ret |= i2c_write_reg(dev, client, csr->h, H_BYTE(value), func);
+                ret |= i2c_write_reg_masked(dev, client, csr->h, H_BYTE(reg), H_BYTE(mask), csr->preserve, func);
         if (csr->u)
-                ret |= i2c_write_reg(dev, client, csr->u, U_BYTE(value), func);
+                ret |= i2c_write_reg_masked(dev, client, csr->u, U_BYTE(reg), U_BYTE(mask), csr->preserve, func);
 
         return ret;
 }
@@ -2883,7 +2935,7 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
                 // OmniVision sensors use exposure registers with low 4 bits as fraction
 
                 vc_calculate_exposure(cam, exposure_us);
-                ret |= vc_sen_write_shs(ctrl, state->shs << 4);
+                ret |= vc_sen_write_shs(ctrl, state->shs);
                 ret |= vc_sen_write_vmax(ctrl, state->vmax);
                 ret |= vc_sen_write_flash_duration(ctrl, duration);
                 ret |= vc_sen_write_flash_offset(ctrl, ctrl->flash_toffset);

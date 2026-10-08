@@ -153,9 +153,15 @@ typedef struct vc_frame {
         __u32 height;
 } vc_frame;
 
+// offset: Bit position of the value LSB within the combined register (0 = LSB of l)
+// length: Number of valid value bits (0 = max length, i.e. register width - offset)
+// preserve: Keep bits outside of offset/length (read-modify-write), otherwise they are written as 0
 typedef struct vc_csr2 {
         __u32 l;
         __u32 m;
+        __u8 offset;
+        __u8 length;
+        bool preserve;
 } vc_csr2;
 
 typedef struct vc_csr4 {
@@ -163,6 +169,9 @@ typedef struct vc_csr4 {
         __u32 m;
         __u32 h;
         __u32 u;
+        __u8 offset;
+        __u8 length;
+        bool preserve;
 } vc_csr4;
 
 struct vc_sen_csr {

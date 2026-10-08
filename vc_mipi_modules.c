@@ -1258,6 +1258,10 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x380f, .m = 0x380e, .h = 0x0000, .u = 0x0000 };
         // NOTE: Modules rom table contains swapped address assigment.
         ctrl->csr.sen.again             = (vc_csr2) { .l = 0x3509, .m = 0x0000 };
+
+
+        ctrl->csr.sen.shs.offset = 4;
+        ctrl->csr.sen.shs.length = 20;
         
         FRAME(0, 0, 1280, 800)
         // All read out      binning   hmax    hmax     hmax  vmax      vmax   vmax  blkl  blkl  retrigger
