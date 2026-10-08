@@ -1641,11 +1641,9 @@ static __u32 vc_sen_read_shs(struct vc_ctrl *ctrl)
 }
 #endif
 
-/* The sensor power can be switched off outside of this driver (e.g. by the
- * carrier board after stream stop). The module then boots with its defaults
- * and the cached state no longer matches the hardware. Detect this by checking
- * that the module still reports a ready sensor and the mode we programmed. */
-static bool vc_mod_lost_state(struct vc_cam *cam)
+/* If the sensor looses initialization since the last stream, the change is detected.  */
+/* Possibly by power management or general power loss */
+static bool vc_mod_lost_initialization(struct vc_cam *cam)
 {
         struct i2c_client *client = cam->ctrl.client_mod;
         struct device *dev = &client->dev;
@@ -1711,8 +1709,8 @@ int vc_mod_set_mode(struct vc_cam *cam, int *reset)
         state->former_binning_mode = state->binning_mode;
 
         mode = vc_mod_find_mode(cam, num_lanes, format, type, binning_mode);
-        if (mode == state->mode && vc_mod_lost_state(cam)) {
-                vc_notice(dev, "%s(): Module was power cycled, reinitializing\n", __FUNCTION__);
+        if (mode == state->mode && vc_mod_lost_initialization(cam)) {
+                vc_notice(dev, "%s(): Module lost initialization\n", __FUNCTION__);
                 state->mode = 0xff;
         }
         if ( (mode == state->mode) && (!(ctrl->flags & FLAG_RESET_ALWAYS) && (type == MODE_TYPE_STREAM) && !reset_binning)) {
