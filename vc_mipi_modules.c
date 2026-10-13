@@ -1,6 +1,5 @@
 #include "vc_mipi_modules.h"
 #include <linux/v4l2-mediabus.h>
-int debug = 3;
 
 #define INIT_MESSAGE(camera) \
         struct device *dev = &ctrl->client_mod->dev; \
@@ -86,7 +85,6 @@ int vc_mod_is_color_sensor(struct vc_desc *desc)
         }
         return 0;
 }
-EXPORT_SYMBOL(vc_mod_is_color_sensor);
 
 static void vc_init_ctrl(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
@@ -1171,18 +1169,23 @@ static void vc_init_ctrl_imx900(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
         //                      mode           min       max    def   max   def
-        MODE( 0, 2, FORMAT_RAW08, 0,     571,   99, 0xffffff, 1794,   255,  15,    563060)
-        MODE( 1, 2, FORMAT_RAW10, 0,     700,   99, 0xffffff, 1794,  1023,  60,    688284)
-        MODE( 2, 2, FORMAT_RAW12, 0,     829,   99, 0xffffff, 1794,  4095, 240,    795528)
+        // 2 lane hmax for 1485 Mbps (module data rate), datasheet CSI-2 all-pixel table;
+        // measured on the sensor: 460 / 564 / 667. Former 571 / 700 / 829 are the 1188 Mbps values.
+        MODE( 0, 2, FORMAT_RAW08, 0,     460,   99, 0xffffff, 1794,   255,  15,    563060)
+        MODE( 1, 2, FORMAT_RAW10, 0,     564,   99, 0xffffff, 1794,  1023,  60,    688284)
+        MODE( 2, 2, FORMAT_RAW12, 0,     667,   99, 0xffffff, 1794,  4095, 240,    795528)
         MODE( 3, 4, FORMAT_RAW08, 0,     338,   99, 0xffffff, 1794,   255,  15,    413694)
         MODE( 4, 4, FORMAT_RAW10, 0,     378,   99, 0xffffff, 1794,  1023,  60,    444204)
         MODE( 5, 4, FORMAT_RAW12, 0,     610,   99, 0xffffff, 1794,  4095, 240,    727542)
-        VMAX_MARGIN(0, 1, 258, 1794)
-        VMAX_MARGIN(1, 1, 258, 1794)
-        VMAX_MARGIN(2, 1, 258, 1794)
-        VMAX_MARGIN(3, 1, 258, 1794)
-        VMAX_MARGIN(4, 1, 258, 1794)
-        VMAX_MARGIN(5, 1, 258, 1794)
+        // Measured (2 lane RAW8, ROI 192x200): below height + ~255 the image
+        // signal drops proportionally (-24% at +219). Keep 258. No floor: a
+        // floor of vmax.def would disable the ROI frame rate increase.
+        VMAX_MARGIN(0, 1, 258, 0)
+        VMAX_MARGIN(1, 1, 258, 0)
+        VMAX_MARGIN(2, 1, 258, 0)
+        VMAX_MARGIN(3, 1, 258, 0)
+        VMAX_MARGIN(4, 1, 258, 0)
+        VMAX_MARGIN(5, 1, 258, 0)
 
         ctrl->flags                     = FLAG_EXPOSURE_SONY;
 
@@ -1385,4 +1388,3 @@ int vc_mod_ctrl_init(struct vc_ctrl* ctrl, struct vc_desc* desc)
 
         return 0;
 }
-EXPORT_SYMBOL(vc_mod_ctrl_init);
