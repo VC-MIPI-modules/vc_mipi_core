@@ -40,10 +40,3 @@ int vc_mod_is_color_sensor(struct vc_desc *desc);
 int vc_mod_ctrl_init(struct vc_ctrl* ctrl, struct vc_desc* desc);
 
 #endif // _VC_MIPI_MODULES_H
-
-#ifdef MODULE
-MODULE_LICENSE("GPL v2");
-MODULE_VERSION(VERSION);
-
-
-#endif

@@ -5,18 +5,11 @@
 #include <linux/errno.h>
 #include <linux/v4l2-mediabus.h>
 #include  <linux/kernel.h>
-#include <linux/debugfs.h>
-#include <linux/vmalloc.h>
-#include <linux/mutex.h>
-#include <linux/ktime.h>
 #include "vc_mipi_modules.h"
 
-#ifdef MODULE
 #include <linux/moduleparam.h>
 #include <linux/module.h>
-#endif
 
-int debug = 3;
 #define READ_DEFAULT_REG_VALUES
 #define OVERWRITE_HMAX
 
@@ -69,108 +62,6 @@ int debug = 3;
 // Global variables
 
 
-
-// ------------------------------------------------------------------------------------------------
-// Dedicated I2C transaction log (debugfs, off by default)
-//
-// Independent of the general "debug" verbosity level: every i2c_read_reg()/i2c_write_reg()
-// call is recorded here (device, register address, value, direction) when enabled, so a full
-// read/write trace can be captured without also enabling the noisy general debug log.
-//
-// /sys/kernel/debug/vc_mipi_i2c/enable - write 1/0 to turn logging on/off (default: off)
-// /sys/kernel/debug/vc_mipi_i2c/log    - read to dump the captured trace
-// /sys/kernel/debug/vc_mipi_i2c/clear  - write anything to clear the trace
-
-#define VC_I2C_LOG_BUF_SIZE (64 * 1024)
-
-static bool vc_i2c_log_enabled;
-static char *vc_i2c_log_buf;
-static size_t vc_i2c_log_len;
-static DEFINE_MUTEX(vc_i2c_log_lock);
-static struct debugfs_blob_wrapper vc_i2c_log_blob;
-static struct dentry *vc_i2c_debugfs_dir;
-
-static void vc_i2c_log(struct i2c_client *client, const char *func, bool is_write,
-        __u16 addr, __u8 value, bool ok)
-{
-        char line[160];
-        u64 sec;
-        u32 ns;
-        int n;
-
-        if (!vc_i2c_log_enabled || !vc_i2c_log_buf)
-                return;
-
-        sec = ktime_get_real_ns();
-        ns = do_div(sec, NSEC_PER_SEC);
-
-        n = scnprintf(line, sizeof(line),
-                "[%llu.%06u] %s(): %s dev=%s addr=0x%02x reg=0x%04x value=0x%02x%s\n",
-                sec, ns / 1000, func, is_write ? "WRITE" : "READ",
-                dev_name(&client->dev), client->addr, addr, value,
-                ok ? "" : " FAILED");
-        if (n <= 0)
-                return;
-
-        mutex_lock(&vc_i2c_log_lock);
-        if (vc_i2c_log_len + n >= VC_I2C_LOG_BUF_SIZE)
-                vc_i2c_log_len = 0;
-        memcpy(vc_i2c_log_buf + vc_i2c_log_len, line, n);
-        vc_i2c_log_len += n;
-        vc_i2c_log_blob.size = vc_i2c_log_len;
-        mutex_unlock(&vc_i2c_log_lock);
-}
-
-static ssize_t vc_i2c_log_clear_write(struct file *file, const char __user *buf,
-        size_t count, loff_t *ppos)
-{
-        mutex_lock(&vc_i2c_log_lock);
-        vc_i2c_log_len = 0;
-        vc_i2c_log_blob.size = 0;
-        if (vc_i2c_log_buf)
-                vc_i2c_log_buf[0] = '\0';
-        mutex_unlock(&vc_i2c_log_lock);
-
-        return count;
-}
-
-static const struct file_operations vc_i2c_log_clear_fops = {
-        .owner = THIS_MODULE,
-        .open = simple_open,
-        .write = vc_i2c_log_clear_write,
-        .llseek = default_llseek,
-};
-
-static int __init vc_i2c_log_debugfs_init(void)
-{
-        vc_i2c_log_buf = vzalloc(VC_I2C_LOG_BUF_SIZE);
-        if (!vc_i2c_log_buf)
-                return -ENOMEM;
-
-        vc_i2c_log_blob.data = vc_i2c_log_buf;
-        vc_i2c_log_blob.size = 0;
-
-        vc_i2c_debugfs_dir = debugfs_create_dir("vc_mipi_i2c", NULL);
-        if (IS_ERR_OR_NULL(vc_i2c_debugfs_dir)) {
-                pr_warn("vc_mipi_core: failed to create debugfs directory, i2c logging unavailable\n");
-                vc_i2c_debugfs_dir = NULL;
-                return 0;
-        }
-
-        debugfs_create_bool("enable", 0644, vc_i2c_debugfs_dir, &vc_i2c_log_enabled);
-        debugfs_create_blob("log", 0444, vc_i2c_debugfs_dir, &vc_i2c_log_blob);
-        debugfs_create_file("clear", 0200, vc_i2c_debugfs_dir, NULL, &vc_i2c_log_clear_fops);
-
-        return 0;
-}
-
-static void vc_i2c_log_debugfs_exit(void)
-{
-        debugfs_remove_recursive(vc_i2c_debugfs_dir);
-        vc_i2c_debugfs_dir = NULL;
-        vfree(vc_i2c_log_buf);
-        vc_i2c_log_buf = NULL;
-}
 
 // ------------------------------------------------------------------------------------------------
 // Function prototypes
@@ -261,12 +152,10 @@ static int i2c_read_reg(struct device *dev, struct i2c_client *client, const __u
         ret = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
         if (ret < 0) {
                 vc_err(&client->dev, "%s(): Reading register 0x%04x from 0x%02x failed\n", func, addr, client->addr);
-                vc_i2c_log(client, func, false, addr, 0, false);
                 return ret;
         }
 
         vc_reg(dev, "%s():   addr: 0x%04x => value: 0x%02x\n", func, addr, buf[0]);
-        vc_i2c_log(client, func, false, addr, buf[0], true);
 
         return buf[0];
 }
@@ -288,10 +177,13 @@ static int i2c_write_reg(struct device *dev, struct i2c_client *client, const __
         tx[1] = addr & 0xff;
         tx[2] = value;
         ret = i2c_transfer(adap, &msg, 1);
+        if (ret != 1) {
+                vc_err(&client->dev, "%s(): Writing register 0x%04x (value 0x%02x) to 0x%02x failed\n",
+                        func, addr, value, client->addr);
+                return -EIO;
+        }
 
-        vc_i2c_log(client, func, true, addr, value, ret == 1);
-
-        return ret == 1 ? 0 : -EIO;
+        return 0;
 }
 
 int i2c_write_regs(struct i2c_client *client, const struct vc_reg *regs, const char* func)
@@ -409,25 +301,21 @@ int vc_read_i2c_reg(struct i2c_client *client, const __u16 addr)
 {
         return i2c_read_reg(&client->dev, client, addr, __FUNCTION__);
 }
-EXPORT_SYMBOL(vc_read_i2c_reg);
 
 int vc_write_i2c_reg(struct i2c_client *client, const __u16 addr, const __u8 value)
 {
         return i2c_write_reg(&client->dev, client, addr, value, __FUNCTION__);
 }
-EXPORT_SYMBOL(vc_write_i2c_reg);
 
 int vc_write_i2c_reg4(struct i2c_client *client, struct vc_csr4 *csr, const __u32 value)
 {
         return i2c_write_reg4(&client->dev, client, csr, value, __FUNCTION__);
 }
-EXPORT_SYMBOL(vc_write_i2c_reg4);
 
 int vc_write_i2c_reg2(struct i2c_client *client, struct vc_csr2 *csr, const __u32 value)
 {
         return i2c_write_reg2(&client->dev, client, csr, value, __FUNCTION__);
 }
-EXPORT_SYMBOL(vc_write_i2c_reg2);
 // ------------------------------------------------------------------------------------------------
 //  Helper Functions for debugging
 
@@ -533,7 +421,6 @@ void vc_core_print_debug(struct vc_cam *cam)
 {
         vc_core_print_mode(cam);
 }
-EXPORT_SYMBOL(vc_core_print_debug);
 
 // ------------------------------------------------------------------------------------------------
 //  Helper functions for internal data structures
@@ -542,7 +429,6 @@ struct device *vc_core_get_sen_device(struct vc_cam *cam)
 {
         return &cam->ctrl.client_sen->dev;
 }
-EXPORT_SYMBOL(vc_core_get_sen_device);
 
 struct device *vc_core_get_mod_device(struct vc_cam *cam)
 {
@@ -781,7 +667,6 @@ vc_mode vc_core_get_mode(struct vc_cam *cam)
         return tRet;
         
 }
-EXPORT_SYMBOL(vc_core_get_mode);
 
 __u32 vc_core_get_hmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
 {
@@ -841,7 +726,6 @@ int vc_core_set_hmax_overwrite(struct vc_cam *cam, __s32 hmax_overwrite)
         cam->state.hmax_overwrite = hmax_overwrite;
         return 0;
 }
-EXPORT_SYMBOL(vc_core_set_hmax_overwrite);
 
 int vc_core_set_vmax_overwrite(struct vc_cam *cam, __s32 vmax_overwrite)
 {
@@ -852,7 +736,6 @@ int vc_core_set_vmax_overwrite(struct vc_cam *cam, __s32 vmax_overwrite)
         cam->state.vmax = vmax_overwrite;
         return 0;
 }
-EXPORT_SYMBOL(vc_core_set_vmax_overwrite);
 
 int vc_core_set_height_offset(struct vc_cam *cam, __s32 height_offset)
 {
@@ -862,7 +745,6 @@ int vc_core_set_height_offset(struct vc_cam *cam, __s32 height_offset)
         cam->state.height_offset = height_offset;
         return 0;
 }
-EXPORT_SYMBOL(vc_core_set_height_offset);
 #endif
 
 static __u32 vc_core_get_default_format(struct vc_cam *cam)
@@ -903,7 +785,6 @@ void vc_core_update_mbus_codes(struct vc_cam *cam)
                 ctrl->mbus_codes[0], ctrl->mbus_codes[1], ctrl->mbus_codes[2], ctrl->mbus_codes[3], ctrl->mbus_codes[4]);
         
 }
-EXPORT_SYMBOL(vc_core_update_mbus_codes);
 
 int vc_core_try_format(struct vc_cam *cam, __u32 code)
 {
@@ -953,7 +834,6 @@ int vc_core_set_format(struct vc_cam *cam, __u32 code)
 
         return 0;
 }
-EXPORT_SYMBOL(vc_core_set_format);
 
 __u32 vc_core_get_format(struct vc_cam *cam)
 {
@@ -967,7 +847,6 @@ __u32 vc_core_get_format(struct vc_cam *cam)
 
         return code;
 }
-EXPORT_SYMBOL(vc_core_get_format);
 
 static void vc_core_limit_frame_position(struct vc_cam *cam, __u32 left, __u32 top)
 {
@@ -1050,7 +929,6 @@ int vc_core_set_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __
 
         return 0;
 }
-EXPORT_SYMBOL(vc_core_set_frame);
 
 struct vc_frame *vc_core_get_frame(struct vc_cam *cam)
 {
@@ -1061,7 +939,6 @@ struct vc_frame *vc_core_get_frame(struct vc_cam *cam)
 
         return frame;
 }
-EXPORT_SYMBOL(vc_core_get_frame);
 
 int vc_core_live_roi(struct vc_cam *cam, __s32 data)
 {
@@ -1082,7 +959,6 @@ int vc_core_live_roi(struct vc_cam *cam, __s32 data)
 
         return 0;
 }
-EXPORT_SYMBOL(vc_core_live_roi);
 
 int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number)
 {
@@ -1104,7 +980,6 @@ int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number)
         vc_err(dev, "%s(): Number of lanes %u not supported!\n", __FUNCTION__, number);
         return -EINVAL;
 }
-EXPORT_SYMBOL(vc_core_set_num_lanes);
 
 __u32 vc_core_get_num_lanes(struct vc_cam *cam)
 {
@@ -1114,7 +989,6 @@ __u32 vc_core_get_num_lanes(struct vc_cam *cam)
         vc_dbg(dev, "%s(): Get number of lanes: %u\n", __FUNCTION__, state->num_lanes);
         return state->num_lanes;
 }
-EXPORT_SYMBOL(vc_core_get_num_lanes);
 
 int vc_core_set_framerate(struct vc_cam *cam, __u32 framerate)
 {
@@ -1134,7 +1008,6 @@ int vc_core_set_framerate(struct vc_cam *cam, __u32 framerate)
 
         return vc_sen_set_exposure(cam, cam->state.exposure);
 }
-EXPORT_SYMBOL(vc_core_set_framerate);
 
 __u32 vc_core_get_framerate(struct vc_cam *cam)
 {
@@ -1152,7 +1025,6 @@ __u32 vc_core_get_framerate(struct vc_cam *cam)
         vc_info(dev, "%s(): Get framerate: %u mHz\n", __FUNCTION__, framerate);
         return framerate;
 }
-EXPORT_SYMBOL(vc_core_get_framerate);
 
 __u32 vc_core_calculate_max_exposure(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
 {
@@ -1287,7 +1159,6 @@ struct i2c_client *vc_mod_get_client(struct device *dev, struct i2c_adapter *ada
 
         return NULL;
 }
-EXPORT_SYMBOL(vc_mod_get_client);
 
 int vc_mod_set_power(struct vc_cam *cam, int on)
 {
@@ -1562,7 +1433,6 @@ int vc_core_init(struct vc_cam *cam, struct i2c_client *client)
         vc_notice(&ctrl->client_mod->dev, "VC MIPI Core successfully initialized\n");
         return 0;
 }
-EXPORT_SYMBOL(vc_core_init);
 
 int vc_core_release(struct vc_cam *cam)
 {
@@ -1570,7 +1440,6 @@ int vc_core_release(struct vc_cam *cam)
         i2c_unregister_device(ctrl->client_mod);
         return 0;
 }
-EXPORT_SYMBOL(vc_core_release);
 
 static int vc_mod_write_exposure(struct i2c_client *client, __u32 value)
 {
@@ -1657,7 +1526,6 @@ int vc_mod_reset_module(struct vc_cam *cam, __u8 mode)
 
         return ret;
 }
-EXPORT_SYMBOL(vc_mod_reset_module);
 
 #ifdef READ_DEFAULT_REG_VALUES
 static __u32 vc_sen_read_hmax(struct vc_ctrl *ctrl)
@@ -1710,6 +1578,45 @@ static bool vc_mod_lost_initialization(struct vc_cam *cam)
         return status != REG_STATUS_READY || mode != cam->state.mode;
 }
 
+// Module mode type (stream, slave, trigger) for the current trigger mode.
+static __u8 vc_mod_get_mode_type(struct vc_cam *cam, char **stype)
+{
+        switch (cam->state.trigger_mode) {
+        case REG_TRIGGER_DISABLE:
+        case REG_TRIGGER_STREAM_EDGE:
+        case REG_TRIGGER_STREAM_LEVEL:
+        default:
+                *stype = "STREAM";
+                return MODE_TYPE_STREAM;
+        case REG_TRIGGER_SYNC:
+                if (cam->ctrl.flags & FLAG_TRIGGER_SLAVE) {
+                        *stype = "SLAVE";
+                        return MODE_TYPE_SLAVE;
+                }
+                *stype = "STREAM";
+                return MODE_TYPE_STREAM;
+        case REG_TRIGGER_EXTERNAL:
+        case REG_TRIGGER_PULSEWIDTH:
+        case REG_TRIGGER_SELF:
+        case REG_TRIGGER_SINGLE:
+                *stype = "EXT.TRG";
+                return MODE_TYPE_TRIGGER;
+        }
+}
+
+// Module (ROM) mode that vc_mod_set_mode() will select for the current format, lanes,
+// trigger and binning. Unlike state->mode it is valid before the stream is started.
+__u8 vc_mod_get_mode(struct vc_cam *cam)
+{
+        struct vc_state *state = &cam->state;
+        char *stype;
+        __u8 type = vc_mod_get_mode_type(cam, &stype);
+        __u8 binning = (cam->ctrl.flags & FLAG_USE_BINNING_INDEX) ? state->binning_mode : 0;
+
+        return vc_mod_find_mode(cam, state->num_lanes, vc_core_mbus_code_to_format(state->format_code),
+                type, binning);
+}
+
 int vc_mod_set_mode(struct vc_cam *cam, int *reset)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
@@ -1725,31 +1632,7 @@ int vc_mod_set_mode(struct vc_cam *cam, int *reset)
         bool reset_binning = false;
         __u8 binning_mode = 0;
 
-        switch (cam->state.trigger_mode) {
-        case REG_TRIGGER_DISABLE:
-        case REG_TRIGGER_STREAM_EDGE:
-        case REG_TRIGGER_STREAM_LEVEL:
-        default:
-                type = MODE_TYPE_STREAM;
-                stype = "STREAM";
-                break;
-        case REG_TRIGGER_SYNC:
-                if (cam->ctrl.flags & FLAG_TRIGGER_SLAVE) {
-                        type = MODE_TYPE_SLAVE;
-                        stype = "SLAVE";
-                } else {
-                        type = MODE_TYPE_STREAM;
-                        stype = "STREAM";
-                }
-                break;
-        case REG_TRIGGER_EXTERNAL:
-        case REG_TRIGGER_PULSEWIDTH:
-        case REG_TRIGGER_SELF:
-        case REG_TRIGGER_SINGLE:
-                type = MODE_TYPE_TRIGGER;
-                stype = "EXT.TRG";
-                break;
-        }
+        type = vc_mod_get_mode_type(cam, &stype);
         binning_mode = (ctrl->flags & FLAG_USE_BINNING_INDEX) ? state->binning_mode : 0;
 
         if (( 0 < state->former_binning_mode ) && ( 0 == state->binning_mode) ) {
@@ -1792,7 +1675,6 @@ int vc_mod_set_mode(struct vc_cam *cam, int *reset)
 
         return ret;
 }
-EXPORT_SYMBOL(vc_mod_set_mode);
 
 int vc_mod_is_trigger_enabled(struct vc_cam *cam)
 {
@@ -1849,7 +1731,6 @@ int vc_mod_set_trigger_mode(struct vc_cam *cam, int mode)
 
         return 0;
 }
-EXPORT_SYMBOL(vc_mod_set_trigger_mode);
 
 int vc_mod_get_trigger_mode(struct vc_cam *cam)
 {
@@ -1865,7 +1746,6 @@ int vc_mod_get_trigger_mode(struct vc_cam *cam)
         }
         return 0;
 }
-EXPORT_SYMBOL(vc_mod_get_trigger_mode);
 
 int vc_mod_set_single_trigger(struct vc_cam *cam)
 {
@@ -1876,7 +1756,6 @@ int vc_mod_set_single_trigger(struct vc_cam *cam)
 
         return i2c_write_reg(dev, client, MOD_REG_EXTTRIG, REG_TRIGGER_SINGLE, __FUNCTION__);
 }
-EXPORT_SYMBOL(vc_mod_set_single_trigger);
 
 
 int vc_mod_set_io_mode(struct vc_cam *cam, int mode)
@@ -1927,7 +1806,6 @@ int vc_mod_set_io_mode(struct vc_cam *cam, int mode)
 
         return 0;
 }
-EXPORT_SYMBOL(vc_mod_set_io_mode);
 
 int vc_mod_get_io_mode(struct vc_cam *cam)
 {
@@ -2001,7 +1879,6 @@ struct vc_binning *vc_core_get_binning(struct vc_cam *cam)
 
         return &ctrl->binnings[state->binning_mode];
 }
-EXPORT_SYMBOL(vc_core_get_binning);
 
 void vc_core_calculate_roi(struct vc_cam *cam, __u32 *left, __u32 *right, __u32 *width,
         __u32 *top, __u32 *bottom, __u32 *height, __u32 *o_width, __u32 *o_height)
@@ -2162,7 +2039,6 @@ int vc_sen_set_hmax(struct vc_cam *cam)
         return 0;
 #endif
 }
-EXPORT_SYMBOL(vc_sen_set_hmax);
 
 int vc_sen_set_roi(struct vc_cam *cam)
 {
@@ -2240,7 +2116,6 @@ int vc_sen_set_roi(struct vc_cam *cam)
 
         return ret;
 }
-EXPORT_SYMBOL(vc_sen_set_roi);
 
 struct v4l2_rect vc_sen_get_roi(struct vc_cam *cam)
 {
@@ -2258,7 +2133,6 @@ struct v4l2_rect vc_sen_get_roi(struct vc_cam *cam)
         return rect;
 
 }
-EXPORT_SYMBOL(vc_sen_get_roi);
 
 int vc_sen_write_vmax(struct vc_ctrl *ctrl, __u32 vmax)
 {
@@ -2269,7 +2143,6 @@ int vc_sen_write_vmax(struct vc_ctrl *ctrl, __u32 vmax)
 
         return i2c_write_reg4(dev, client, &ctrl->csr.sen.vmax, vmax, __FUNCTION__);
 }
-EXPORT_SYMBOL(vc_sen_write_vmax);
 
 static int vc_sen_write_shs(struct vc_ctrl *ctrl, __u32 shs)
 {
@@ -2314,7 +2187,6 @@ __u64 vc_core_mdB_to_times(int mdB)
         }
         return (times * 1000) / BASE;
 }
-EXPORT_SYMBOL(vc_core_mdB_to_times);
 
 int vc_core_times_to_mdB(__u64 times)
 {
@@ -2326,7 +2198,6 @@ int vc_core_times_to_mdB(__u64 times)
         }
         return mdB;
 }
-EXPORT_SYMBOL(vc_core_times_to_mdB);
 
 int vc_sen_set_gain(struct vc_cam *cam, __u64 gain, bool unit_is_mdB)
 {
@@ -2415,7 +2286,6 @@ int vc_sen_set_gain(struct vc_cam *cam, __u64 gain, bool unit_is_mdB)
         cam->state.gain = gain_mdB;
         return 0;
 }
-EXPORT_SYMBOL(vc_sen_set_gain);
 
 int vc_sen_set_blacklevel(struct vc_cam *cam, __u32 blacklevel_rel)
 {
@@ -2443,7 +2313,6 @@ int vc_sen_set_blacklevel(struct vc_cam *cam, __u32 blacklevel_rel)
         state->blacklevel = blacklevel_rel;
         return 0;
 }
-EXPORT_SYMBOL(vc_sen_set_blacklevel);
 
 int vc_sen_start_stream(struct vc_cam *cam)
 {
@@ -2504,7 +2373,6 @@ int vc_sen_start_stream(struct vc_cam *cam)
 
         return ret;
 }
-EXPORT_SYMBOL(vc_sen_start_stream);
 
 int vc_sen_stop_stream(struct vc_cam *cam)
 {
@@ -2529,7 +2397,6 @@ int vc_sen_stop_stream(struct vc_cam *cam)
 
         return ret;
 }
-EXPORT_SYMBOL(vc_sen_stop_stream);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -2577,7 +2444,6 @@ __u32 vc_core_get_time_per_line_ns(struct vc_cam *cam)
 
         return (hmax * 1000000000) / cam->ctrl.clk_pixel;
 }
-EXPORT_SYMBOL(vc_core_get_time_per_line_ns);
 
 int vc_core_set_binning_mode(struct vc_cam *cam, int mode)
 {
@@ -2598,7 +2464,6 @@ int vc_core_set_binning_mode(struct vc_cam *cam, int mode)
 
         return 0;
 }
-EXPORT_SYMBOL(vc_core_set_binning_mode);
 
 static void vc_core_calculate_vmax(struct vc_cam *cam, __u32 period_1H_ns)
 {
@@ -2796,6 +2661,22 @@ static void vc_calculate_exposure(struct vc_cam *cam, __u32 exposure_us)
                 ctrl->flags, state->shs, vmax_min, state->vmax, vmax_def);
 }
 
+// Limit the VMAX overwrite (V4L2 VBLANK) to the mode's minimum: height + margin, floor.
+static __u32 vc_core_clamp_vmax_overwrite(struct vc_cam *cam, vc_mode *mode)
+{
+        __u32 vmax = cam->state.vmax_overwrite;
+        __u32 scale = mode->vmax_row_scale > 0 ? mode->vmax_row_scale : 1;
+
+        if (mode->vmax_row_margin > 0 || mode->vmax_row_floor > 0 || mode->vmax_row_scale > 0) {
+                __u32 real_min = cam->state.frame.height + mode->vmax_row_margin;
+                if (mode->vmax_row_floor > real_min)
+                        real_min = mode->vmax_row_floor;
+                if (vmax < scale * real_min)
+                        vmax = scale * real_min;
+        }
+        return vmax;
+}
+
 static void vc_calculate_trig_exposure(struct vc_cam *cam, __u32 exposure_us)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
@@ -2890,32 +2771,23 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
 
                         if(state->vmax_overwrite > 0)
                         {
-                                __u32 vmax_overwrite_clamped = state->vmax_overwrite;
-
-                                __u8 num_lanes = state->num_lanes;
-                                __u8 format = vc_core_mbus_code_to_format(state->format_code);
-                                __u8 binning = state->binning_mode;
-                                vc_mode mode = vc_core_get_mode_by_param(cam, num_lanes, format, binning);
-                                __u32 scale = mode.vmax_row_scale > 0 ? mode.vmax_row_scale : 1;
-
-                                if (mode.vmax_row_margin > 0 || mode.vmax_row_floor > 0 || mode.vmax_row_scale > 0) {
-                                        __u32 real_min = state->frame.height + mode.vmax_row_margin;
-                                        if (mode.vmax_row_floor > real_min)
-                                                real_min = mode.vmax_row_floor;
-                                        if (vmax_overwrite_clamped < scale * real_min)
-                                                vmax_overwrite_clamped = scale * real_min;
-                                }
+                                vc_mode mode = vc_core_get_mode_by_param(cam, state->num_lanes,
+                                        vc_core_mbus_code_to_format(state->format_code), state->binning_mode);
+                                __u32 vmax_overwrite_clamped = vc_core_clamp_vmax_overwrite(cam, &mode);
 
                                 // Re-calculate SHS against the overwrite VMAX so exposure
-                                // is correct at the forced frame rate instead of always
-                                // writing SHS=0 (which maximizes exposure).
-                                if (vmax_overwrite_clamped > state->vmax) {
-                                        // Overwrite VMAX is larger than natural VMAX: exposure
-                                        // still fits, recalculate SHS to keep the same exposure.
-                                        state->shs = vmax_overwrite_clamped - (state->vmax - state->shs);
+                                // stays the same in both directions. Sony: exposure is
+                                // VMAX - SHS, so SHS has to move with VMAX. If the exposure
+                                // does not fit, extend VMAX like vc_calculate_exposure_sony().
+                                if (ctrl->flags & FLAG_EXPOSURE_SONY) {
+                                        __u32 exposure_lines = state->vmax - state->shs;
+                                        if (vmax_overwrite_clamped < mode.vmax.min + exposure_lines)
+                                                vmax_overwrite_clamped = mode.vmax.min + exposure_lines;
+                                        state->shs = vmax_overwrite_clamped - exposure_lines;
+                                } else if (vmax_overwrite_clamped < state->shs + ctrl->vmax_exposure_margin) {
+                                        // Normal: SHS is the exposure itself and stays as is.
+                                        vmax_overwrite_clamped = state->shs + ctrl->vmax_exposure_margin;
                                 }
-                                // If overwrite VMAX <= natural VMAX the shs from
-                                // vc_calculate_exposure() is already correct.
                                 ret |= vc_sen_write_vmax(ctrl, vmax_overwrite_clamped);
                                 ret |= vc_sen_write_shs(ctrl, state->shs);
                                 ret |= vc_sen_set_hmax(cam);
@@ -2935,6 +2807,15 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
                 // OmniVision sensors use exposure registers with low 4 bits as fraction
 
                 vc_calculate_exposure(cam, exposure_us);
+                if (state->vmax_overwrite > 0) {
+                        // SHS is the exposure itself (OV9281: max exposure is VTS - 25),
+                        // so only VMAX follows the overwrite, at least exposure + margin.
+                        vc_mode mode = vc_core_get_mode_by_param(cam, state->num_lanes,
+                                vc_core_mbus_code_to_format(state->format_code), state->binning_mode);
+                        state->vmax = vc_core_clamp_vmax_overwrite(cam, &mode);
+                        if (state->vmax < state->shs + ctrl->vmax_exposure_margin)
+                                state->vmax = state->shs + ctrl->vmax_exposure_margin;
+                }
                 ret |= vc_sen_write_shs(ctrl, state->shs);
                 ret |= vc_sen_write_vmax(ctrl, state->vmax);
                 ret |= vc_sen_write_flash_duration(ctrl, duration);
@@ -2971,21 +2852,3 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
 
         return ret;
 }
-EXPORT_SYMBOL(vc_sen_set_exposure);
-
-#ifdef MODULE
-module_param(debug, int, 0644);
-MODULE_PARM_DESC(debug, "Debug level (0-6)");
-
-module_param_named(i2c_log, vc_i2c_log_enabled, bool, 0644);
-MODULE_PARM_DESC(i2c_log, "Enable the dedicated I2C transaction log from module load (default: off). "
-        "Same switch as /sys/kernel/debug/vc_mipi_i2c/enable, settable here so probe-time writes are captured too.");
-
-module_init(vc_i2c_log_debugfs_init);
-module_exit(vc_i2c_log_debugfs_exit);
-
-MODULE_LICENSE("GPL v2");
-MODULE_DESCRIPTION("VC MIPI Core Module");
-MODULE_VERSION(VERSION);
-MODULE_INFO(name, "vc_mipi_core");
-#endif

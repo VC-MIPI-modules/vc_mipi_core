@@ -396,6 +396,7 @@ void vc_core_print_debug(struct vc_cam *cam);                                   
 struct device *vc_core_get_sen_device(struct vc_cam *cam);
 vc_mode vc_core_get_mode(struct vc_cam *cam);
 void vc_core_update_mbus_codes(struct vc_cam *cam);
+int vc_core_try_format(struct vc_cam *cam, __u32 code);
 int vc_core_set_format(struct vc_cam *cam, __u32 code);
 __u32 vc_core_get_format(struct vc_cam *cam);
 int vc_core_set_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __u32 height);
@@ -423,6 +424,7 @@ int vc_core_update_controls(struct vc_cam *cam);                                
 
 // --- Functions for the VC MIPI Controller Module ----------------------------
 int vc_mod_set_mode(struct vc_cam *cam, int *reset);
+__u8 vc_mod_get_mode(struct vc_cam *cam);
 int vc_mod_set_trigger_mode(struct vc_cam *cam, int mode);
 int vc_mod_get_trigger_mode(struct vc_cam *cam);                                // Only used by NVIDIA driver
 int vc_mod_set_single_trigger(struct vc_cam *cam);
