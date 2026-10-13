@@ -2171,9 +2171,10 @@ static int vc_sen_write_flash_offset(struct vc_ctrl *ctrl, __u32 offset)
         return i2c_write_reg4(dev, client, &ctrl->csr.sen.flash_offset, offset, __FUNCTION__);
 }
 
-// times = 10^(mdB/10000) = 1.000230285^mdB
-#define FACTOR 100023
-#define BASE   100000
+// Amplitude dB, as libcamera (20 * log10) and the linear gain registers use it:
+// times = 10^(mdB/20000) = 1.000115136^mdB
+#define FACTOR 10001151
+#define BASE   10000000
 
 __u64 vc_core_mdB_to_times(int mdB)
 {
@@ -2233,7 +2234,7 @@ int vc_sen_set_gain(struct vc_cam *cam, __u64 gain, bool unit_is_mdB)
                 break;
 
         case GAIN_LOGARITHMIC:
-                again_times = 1000000/vc_core_mdB_to_times(again_mdB/2);
+                again_times = 1000000/vc_core_mdB_to_times(again_mdB);
                 again = (1000 * ctrl->again.c1 - again_times * ctrl->again.c0) / 1000;
                 vc_dbg(dev, "%s(): GAIN_LOG %u mdB -> %u times\n", __FUNCTION__, again_mdB, again_times);
                 break;
@@ -2427,7 +2428,7 @@ static __u64 vc_core_calculate_exposure_1H(struct vc_cam *cam, __u8 num_lanes, _
         // Convert exposure time from µs to ns.
         exposure_ns = (__u64)(exposure_us)*1000;
         // Calculate number of lines equivalent to the exposure time without shs_min.
-        exposure_1H = exposure_ns / period_1H_ns;    
+        exposure_1H = DIV_ROUND_CLOSEST_ULL(exposure_ns, period_1H_ns);
 
         return exposure_1H;
 }

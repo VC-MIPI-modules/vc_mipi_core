@@ -650,8 +650,9 @@ static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         INIT_MESSAGE("IMX412")
         
-        AGAIN_REC(978, 13400, 1024, 1024)
-        DGAIN(0x0fff, 12000);
+        // Max in amplitude dB: 1024 / (1024 - 978) = 22.26x = 26.95 dB, dgain 0x0fff = 16x = 24.08 dB
+        AGAIN_REC(978, 26950, 1024, 1024)
+        DGAIN(0x0fff, 24080);
 
         ctrl->csr.sen.dgain             = (vc_csr2) { .l = 0x020f, .m = 0x020e };
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x3033, .m = 0x3032 };
@@ -660,23 +661,26 @@ static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->csr.sen.shs               = (vc_csr4) { .l = 0x0203, .m = 0x0202, .h = 0x0000, .u = 0x0000 };
 
         FRAME(0, 0, 4032, 3040)
+        // vmax min (= minimum exposure for FLAG_EXPOSURE_NORMAL): measured linear down to 1 line.
+        // Black level register 0x3032/0x3033 is in 12-bit units (measured: 64 -> 16 in RAW10):
+        // max 4095, default 256 = 64 in RAW10 as the libcamera tuning (black_level 4096) expects.
         // All read out      binning    hmax  vmax      vmax    vmax  blkl  blkl  retrigger
         //                      mode           min       max     def   max   def
-        MODE( 0, 2, FORMAT_RAW10, 0,     599,   10,   0xffff, 0x0c14, 1023,   40,         0)
-        MODE( 1, 4, FORMAT_RAW10, 0,     218,   10,   0xffff, 0x0c14, 1023,   40,         0)
+        MODE( 0, 2, FORMAT_RAW10, 0,     599,    1,   0xffff, 0x0c14, 4095,  256,         0)
+        MODE( 1, 4, FORMAT_RAW10, 0,     218,    1,   0xffff, 0x0c14, 4095,  256,         0)
         VMAX_MARGIN(0, 1, 52, 0)
         VMAX_MARGIN(1, 1, 52, 0)
 
-        MODE( 2, 2, FORMAT_RAW10, 1,     436,   10,   0xffff, 0x0624, 1023,   40,         0)
-        MODE( 3, 4, FORMAT_RAW10, 1,     218,   10,   0xffff, 0x0624, 1023,   40,         0)
-        MODE( 4, 2, FORMAT_RAW10, 2,     436,   10,   0xffff, 0x0624, 1023,   40,         0)
-        MODE( 5, 4, FORMAT_RAW10, 2,     218,   10,   0xffff, 0x0624, 1023,   40,         0)
-        MODE( 6, 2, FORMAT_RAW10, 3,     436,   10,   0xffff, 0x0624, 1023,   40,         0)
-        MODE( 7, 4, FORMAT_RAW10, 3,     218,   10,   0xffff, 0x0624, 1023,   40,         0)
-        MODE( 8, 2, FORMAT_RAW10, 4,     436,   10,   0xffff, 0x0624, 1023,   40,         0)
-        MODE( 9, 4, FORMAT_RAW10, 4,     218,   10,   0xffff, 0x0624, 1023,   40,         0)
-        MODE(10, 2, FORMAT_RAW10, 5,     436,   10,   0xffff, 0x0624, 1023,   40,         0)
-        MODE(11, 4, FORMAT_RAW10, 5,     218,   10,   0xffff, 0x0624, 1023,   40,         0)
+        MODE( 2, 2, FORMAT_RAW10, 1,     436,    1,   0xffff, 0x0624, 4095,  256,         0)
+        MODE( 3, 4, FORMAT_RAW10, 1,     218,    1,   0xffff, 0x0624, 4095,  256,         0)
+        MODE( 4, 2, FORMAT_RAW10, 2,     436,    1,   0xffff, 0x0624, 4095,  256,         0)
+        MODE( 5, 4, FORMAT_RAW10, 2,     218,    1,   0xffff, 0x0624, 4095,  256,         0)
+        MODE( 6, 2, FORMAT_RAW10, 3,     436,    1,   0xffff, 0x0624, 4095,  256,         0)
+        MODE( 7, 4, FORMAT_RAW10, 3,     218,    1,   0xffff, 0x0624, 4095,  256,         0)
+        MODE( 8, 2, FORMAT_RAW10, 4,     436,    1,   0xffff, 0x0624, 4095,  256,         0)
+        MODE( 9, 4, FORMAT_RAW10, 4,     218,    1,   0xffff, 0x0624, 4095,  256,         0)
+        MODE(10, 2, FORMAT_RAW10, 5,     436,    1,   0xffff, 0x0624, 4095,  256,         0)
+        MODE(11, 4, FORMAT_RAW10, 5,     218,    1,   0xffff, 0x0624, 4095,  256,         0)
 
         ctrl->clk_ext_trigger           = 37125000;
         ctrl->clk_pixel                 = 37125000;
@@ -1214,7 +1218,7 @@ static void vc_init_ctrl_ov7251(struct vc_ctrl *ctrl, struct vc_desc* desc)
         INIT_MESSAGE("OV7251")
 
         ctrl->exposure                  = (vc_control) { .min =   1, .max =   1000000, .def =  10000 };
-        AGAIN_FRA(255, 12000)
+        AGAIN_FRA(255, 24050)    // 0xff = 15.94x = 24.05 dB (amplitude)
 
         ctrl->csr.sen.h_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
         ctrl->csr.sen.v_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
@@ -1249,7 +1253,7 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
         INIT_MESSAGE("OV9281")
         
         ctrl->exposure                  = (vc_control) { .min = 146, .max =    595000, .def =  10000 };
-        AGAIN_FRA(255, 12000)
+        AGAIN_FRA(255, 24050)    // 0xff = 15.94x = 24.05 dB (amplitude)
 
         ctrl->csr.sen.h_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
         ctrl->csr.sen.v_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
