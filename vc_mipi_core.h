@@ -397,6 +397,7 @@ struct device *vc_core_get_sen_device(struct vc_cam *cam);
 vc_mode vc_core_get_mode(struct vc_cam *cam);
 void vc_core_update_mbus_codes(struct vc_cam *cam);
 int vc_core_try_format(struct vc_cam *cam, __u32 code);
+__u32 vc_core_get_optimized_vmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning_mode, __u32 height);
 int vc_core_set_format(struct vc_cam *cam, __u32 code);
 __u32 vc_core_get_format(struct vc_cam *cam);
 int vc_core_set_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __u32 height);
