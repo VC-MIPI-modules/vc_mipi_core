@@ -662,10 +662,10 @@ static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
         FRAME(0, 0, 4032, 3040)
         // All read out      binning    hmax  vmax      vmax    vmax  blkl  blkl  retrigger
         //                      mode           min       max     def   max   def
-        MODE( 0, 2, FORMAT_RAW10, 0,     436,   10,   0xffff, 0x0c14, 1023,   40,         0)
+        MODE( 0, 2, FORMAT_RAW10, 0,     599,   10,   0xffff, 0x0c14, 1023,   40,         0)
         MODE( 1, 4, FORMAT_RAW10, 0,     218,   10,   0xffff, 0x0c14, 1023,   40,         0)
-        VMAX_MARGIN(0, 1, 506, 0)
-        VMAX_MARGIN(1, 1, 506, 0)
+        VMAX_MARGIN(0, 1, 52, 0)
+        VMAX_MARGIN(1, 1, 52, 0)
 
         MODE( 2, 2, FORMAT_RAW10, 1,     436,   10,   0xffff, 0x0624, 1023,   40,         0)
         MODE( 3, 4, FORMAT_RAW10, 1,     218,   10,   0xffff, 0x0624, 1023,   40,         0)
@@ -727,6 +727,7 @@ static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->flags                    |= FLAG_IO_ENABLED;
         ctrl->flags                    |= FLAG_TRIGGER_SLAVE;
         ctrl->flags                    |= FLAG_USE_BINNING_INDEX;
+        ctrl->vmax_exposure_margin      = 22;
 }
 
 // ------------------------------------------------------------------------------------------------
