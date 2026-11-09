@@ -706,7 +706,7 @@ int vc_core_set_hmax_overwrite(struct vc_cam *cam, __s32 hmax_overwrite)
          * one tick outside the sensor's real range -- writing that straight to the
          * sensor silently breaks CSI output (STREAMON succeeds, zero frames ever
          * arrive). Clamp to the active mode's declared [hmax.min, hmax.max] instead,
-         * same floor/ceiling-protection principle as VMAX_MARGIN. */
+         * same floor/ceiling-protection principle as the MODE() vmax margin. */
         if (hmax_overwrite > 0) {
                 struct vc_state *state = &cam->state;
                 __u8 num_lanes = state->num_lanes;
