@@ -126,6 +126,8 @@ static void vc_init_ctrl(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         ctrl->clk_ext_trigger           = desc->clk_ext_trigger;
         ctrl->clk_pixel                 = desc->clk_pixel;
+
+        ctrl->cfa                       = VC_CFA_RGGB;
 }
 
 static void vc_init_ctrl_imx183_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
@@ -289,7 +291,7 @@ static void vc_init_ctrl_imx226(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         ctrl->clk_pixel                 = 72000000;
 
-        ctrl->flags                    |= FLAG_FORMAT_GBRG;
+        ctrl->cfa                       = VC_CFA_GBRG;
         ctrl->flags                    |= FLAG_RESET_ALWAYS;
         ctrl->flags                    |= FLAG_TRIGGER_STREAM_EDGE | FLAG_TRIGGER_STREAM_LEVEL;
 }
@@ -689,7 +691,7 @@ static void vc_init_ctrl_imx415(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->flags                     = FLAG_EXPOSURE_SONY;
         ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
         ctrl->flags                    |= FLAG_DOUBLE_HEIGHT;
-        ctrl->flags                    |= FLAG_FORMAT_GBRG;
+        ctrl->cfa                       = VC_CFA_GBRG;
         ctrl->flags                    |= FLAG_IO_ENABLED;
 }
 
@@ -1193,7 +1195,7 @@ static void vc_init_ctrl_ar2020(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->vmax_exposure_margin      = 4;
        // ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL; 
         ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
-        ctrl->flags                    |= FLAG_FORMAT_GRBG;
+        ctrl->cfa                       = VC_CFA_GRBG;
         
         ctrl->crop_top_step             = 2;
 

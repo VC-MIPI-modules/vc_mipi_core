@@ -25,7 +25,6 @@ extern int debug;
 #define FLAG_EXPOSURE_OMNIVISION        (1 <<  3)
 
 #define FLAG_IO_ENABLED                 (1 <<  4)
-#define FLAG_FORMAT_GBRG                (1 <<  5)
 #define FLAG_DOUBLE_HEIGHT              (1 <<  6)
 #define FLAG_INCREASE_FRAME_RATE        (1 <<  7)
 
@@ -46,9 +45,9 @@ extern int debug;
 
 
 #define FLAG_EXPOSURE_ONSEMI            (1 <<  20)
-#define FLAG_FORMAT_GRBG                (1 <<  21)
-#define FLAG_FORMAT_BGGR                (1 <<  22)
 
+// Color Filter Array (Bayer pattern) of a color sensor, starting with the
+// top left pixel of the first two lines.
 enum vc_cfa_pattern {
         VC_CFA_RGGB = 0,
         VC_CFA_GBRG,
@@ -334,6 +333,8 @@ struct vc_ctrl {
         // Cropping and exposure related registers
         __u32 vmax_exposure_margin;
         __u32 crop_top_step;
+        // Color filter array (Bayer pattern) of color sensors
+        enum vc_cfa_pattern cfa;
         // Special features
         __u32 flags;
         __u32 mbus_codes[MAX_MBUS_CODES];

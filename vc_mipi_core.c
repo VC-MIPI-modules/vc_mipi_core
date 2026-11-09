@@ -621,13 +621,7 @@ static __u8 vc_core_mbus_code_to_format(__u32 code)
 
 static enum vc_cfa_pattern vc_core_get_cfa_pattern(struct vc_ctrl *ctrl)
 {
-        if (ctrl->flags & FLAG_FORMAT_BGGR)
-                return VC_CFA_BGGR;
-        if (ctrl->flags & FLAG_FORMAT_GRBG)
-                return VC_CFA_GRBG;
-        if (ctrl->flags & FLAG_FORMAT_GBRG)
-                return VC_CFA_GBRG;
-        return VC_CFA_RGGB;
+        return ctrl->cfa;
 }
 
 static __u32 vc_core_format_to_mbus_code(__u8 format, int is_color, enum vc_cfa_pattern cfa)
