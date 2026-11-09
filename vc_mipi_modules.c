@@ -378,9 +378,9 @@ static void vc_init_ctrl_imx264(struct vc_ctrl *ctrl, struct vc_desc* desc)
         FRAME(0, 0, 2432, 2048)
         //                                       hmax    hmax   hmax  vmax      vmax    vmax   blkl  blkl  retrigger
         //   idx  lanes        format  binning    min     max    def   min       max     def    max   def        min
-        MODE(  0,     2, FORMAT_RAW08,       0,   996,    996,   996,   10,  0xfffff,   2100,   255,   15,   1580040)
-        MODE(  1,     2, FORMAT_RAW10,       0,   996,    996,   996,   10,  0xfffff,   2100,  1023,   60,   1580040)
-        MODE(  2,     2, FORMAT_RAW12,       0,   996,    996,   996,   10,  0xfffff,   2100,  4095,  240,   1580040)
+        MODE(  0,     2, FORMAT_RAW08,       0,   996, 0xffff,   996,   10,  0xfffff,   2100,   255,   15,   1580040)
+        MODE(  1,     2, FORMAT_RAW10,       0,   996, 0xffff,   996,   10,  0xfffff,   2100,  1023,   60,   1580040)
+        MODE(  2,     2, FORMAT_RAW12,       0,   996, 0xffff,   996,   10,  0xfffff,   2100,  4095,  240,   1580040)
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -396,9 +396,9 @@ static void vc_init_ctrl_imx265(struct vc_ctrl *ctrl, struct vc_desc* desc)
         FRAME(0, 0, 2048, 1536)
         //                                       hmax    hmax   hmax  vmax      vmax    vmax   blkl  blkl  retrigger
         //   idx  lanes        format  binning    min     max    def   min       max     def    max   def        min
-        MODE(  0,     2, FORMAT_RAW08,       0,   846,    846,   846,   10,  0xfffff,   1587,   255,   15,   1580040)
-        MODE(  1,     2, FORMAT_RAW10,       0,   846,    846,   846,   10,  0xfffff,   1587,  1023,   60,   1580040)
-        MODE(  2,     2, FORMAT_RAW12,       0,   846,    846,   846,   10,  0xfffff,   1587,  4095,  240,   1580040)
+        MODE(  0,     2, FORMAT_RAW08,       0,   846, 0xffff,   846,   10,  0xfffff,   1587,   255,   15,   1580040)
+        MODE(  1,     2, FORMAT_RAW10,       0,   846, 0xffff,   846,   10,  0xfffff,   1587,  1023,   60,   1580040)
+        MODE(  2,     2, FORMAT_RAW12,       0,   846, 0xffff,   846,   10,  0xfffff,   1587,  4095,  240,   1580040)
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -464,10 +464,10 @@ static void vc_init_ctrl_imx290(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         //                                       hmax    hmax   hmax  vmax      vmax    vmax   blkl  blkl  retrigger
         //   idx  lanes        format  binning    min     max    def   min       max     def    max   def        min
-        MODE(  0,     2, FORMAT_RAW10,       0,  1100,   1100,  1100,    1,  0x3ffff,  0x465,   511,   60,         0)
-        MODE(  1,     2, FORMAT_RAW12,       0,  1100,   1100,  1100,    1,  0x3ffff,  0x465,   511,  240,         0)
-        MODE(  2,     4, FORMAT_RAW10,       0,   550,    550,   550,    1,  0x3ffff,  0x465,   511,   60,         0)
-        MODE(  3,     4, FORMAT_RAW12,       0,   550,    550,   550,    1,  0x3ffff,  0x465,   511,  240,         0)
+        MODE(  0,     2, FORMAT_RAW10,       0,  1100, 0xffff,  1100,    1,  0x3ffff,  0x465,   511,   60,         0)
+        MODE(  1,     2, FORMAT_RAW12,       0,  1100, 0xffff,  1100,    1,  0x3ffff,  0x465,   511,  240,         0)
+        MODE(  2,     4, FORMAT_RAW10,       0,   550, 0xffff,   550,    1,  0x3ffff,  0x465,   511,   60,         0)
+        MODE(  3,     4, FORMAT_RAW12,       0,   550, 0xffff,   550,    1,  0x3ffff,  0x465,   511,  240,         0)
         VMAX_MARGIN(0, 1, 19, 0)
         VMAX_MARGIN(1, 1, 19, 0)
         VMAX_MARGIN(2, 1, 19, 0)
@@ -554,10 +554,10 @@ static void vc_init_ctrl_imx327(struct vc_ctrl *ctrl, struct vc_desc* desc)
        
         //                                       hmax    hmax   hmax  vmax      vmax    vmax   blkl  blkl  retrigger
         //   idx  lanes        format  binning    min     max    def   min       max     def    max   def        min
-        MODE(  0,     2, FORMAT_RAW10,       0,  1100,   1100,  1100,    1,  0x3ffff,  0x465,   511,   60,         0)
-        MODE(  1,     2, FORMAT_RAW12,       0,  1100,   1100,  1100,    1,  0x3ffff,  0x465,   511,  240,         0)
-        MODE(  2,     4, FORMAT_RAW10,       0,  1100,   1100,  1100,    1,  0x3ffff,  0x465,   511,   60,         0)
-        MODE(  3,     4, FORMAT_RAW12,       0,  1100,   1100,  1100,    1,  0x3ffff,  0x465,   511,  240,         0)
+        MODE(  0,     2, FORMAT_RAW10,       0,  1100, 0xffff,  1100,    1,  0x3ffff,  0x465,   511,   60,         0)
+        MODE(  1,     2, FORMAT_RAW12,       0,  1100, 0xffff,  1100,    1,  0x3ffff,  0x465,   511,  240,         0)
+        MODE(  2,     4, FORMAT_RAW10,       0,  1100, 0xffff,  1100,    1,  0x3ffff,  0x465,   511,   60,         0)
+        MODE(  3,     4, FORMAT_RAW12,       0,  1100, 0xffff,  1100,    1,  0x3ffff,  0x465,   511,  240,         0)
         VMAX_MARGIN(0, 1, 19, 0)
         VMAX_MARGIN(1, 1, 19, 0)
         VMAX_MARGIN(2, 1, 19, 0)
@@ -661,21 +661,21 @@ static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
         // max 4095, default 256 = 64 in RAW10 as the libcamera tuning (black_level 4096) expects.
         //                                       hmax    hmax   hmax  vmax      vmax    vmax   blkl  blkl  retrigger
         //   idx  lanes        format  binning    min     max    def   min       max     def    max   def        min
-        MODE(  0,     2, FORMAT_RAW10,       0,   599,    599,   599,    1,   0xffff, 0x0c14,  4095,  256,         0)
-        MODE(  1,     4, FORMAT_RAW10,       0,   218,    218,   218,    1,   0xffff, 0x0c14,  4095,  256,         0)
+        MODE(  0,     2, FORMAT_RAW10,       0,   599, 0xffff,   599,    1,   0xffff, 0x0c14,  4095,  256,         0)
+        MODE(  1,     4, FORMAT_RAW10,       0,   218, 0xffff,   218,    1,   0xffff, 0x0c14,  4095,  256,         0)
         VMAX_MARGIN(0, 1, 52, 0)
         VMAX_MARGIN(1, 1, 52, 0)
 
-        MODE(  2,     2, FORMAT_RAW10,       1,   436,    436,   436,    1,   0xffff, 0x0624,  4095,  256,         0)
-        MODE(  3,     4, FORMAT_RAW10,       1,   218,    218,   218,    1,   0xffff, 0x0624,  4095,  256,         0)
-        MODE(  4,     2, FORMAT_RAW10,       2,   436,    436,   436,    1,   0xffff, 0x0624,  4095,  256,         0)
-        MODE(  5,     4, FORMAT_RAW10,       2,   218,    218,   218,    1,   0xffff, 0x0624,  4095,  256,         0)
-        MODE(  6,     2, FORMAT_RAW10,       3,   436,    436,   436,    1,   0xffff, 0x0624,  4095,  256,         0)
-        MODE(  7,     4, FORMAT_RAW10,       3,   218,    218,   218,    1,   0xffff, 0x0624,  4095,  256,         0)
-        MODE(  8,     2, FORMAT_RAW10,       4,   436,    436,   436,    1,   0xffff, 0x0624,  4095,  256,         0)
-        MODE(  9,     4, FORMAT_RAW10,       4,   218,    218,   218,    1,   0xffff, 0x0624,  4095,  256,         0)
-        MODE( 10,     2, FORMAT_RAW10,       5,   436,    436,   436,    1,   0xffff, 0x0624,  4095,  256,         0)
-        MODE( 11,     4, FORMAT_RAW10,       5,   218,    218,   218,    1,   0xffff, 0x0624,  4095,  256,         0)
+        MODE(  2,     2, FORMAT_RAW10,       1,   436, 0xffff,   436,    1,   0xffff, 0x0624,  4095,  256,         0)
+        MODE(  3,     4, FORMAT_RAW10,       1,   218, 0xffff,   218,    1,   0xffff, 0x0624,  4095,  256,         0)
+        MODE(  4,     2, FORMAT_RAW10,       2,   436, 0xffff,   436,    1,   0xffff, 0x0624,  4095,  256,         0)
+        MODE(  5,     4, FORMAT_RAW10,       2,   218, 0xffff,   218,    1,   0xffff, 0x0624,  4095,  256,         0)
+        MODE(  6,     2, FORMAT_RAW10,       3,   436, 0xffff,   436,    1,   0xffff, 0x0624,  4095,  256,         0)
+        MODE(  7,     4, FORMAT_RAW10,       3,   218, 0xffff,   218,    1,   0xffff, 0x0624,  4095,  256,         0)
+        MODE(  8,     2, FORMAT_RAW10,       4,   436, 0xffff,   436,    1,   0xffff, 0x0624,  4095,  256,         0)
+        MODE(  9,     4, FORMAT_RAW10,       4,   218, 0xffff,   218,    1,   0xffff, 0x0624,  4095,  256,         0)
+        MODE( 10,     2, FORMAT_RAW10,       5,   436, 0xffff,   436,    1,   0xffff, 0x0624,  4095,  256,         0)
+        MODE( 11,     4, FORMAT_RAW10,       5,   218, 0xffff,   218,    1,   0xffff, 0x0624,  4095,  256,         0)
 
         ctrl->clk_ext_trigger           = 37125000;
         ctrl->clk_pixel                 = 37125000;
@@ -774,9 +774,9 @@ static void vc_init_ctrl_imx462(struct vc_ctrl *ctrl, struct vc_desc *desc)
 
         //                                       hmax    hmax   hmax  vmax      vmax    vmax   blkl  blkl  retrigger
         //   idx  lanes        format  binning    min     max    def   min       max     def    max   def        min
-        MODE(  0,     2, FORMAT_RAW10,       0,  1100,   1100,  1100,    1,  0x3ffff,  0x465,   511,   60,         0)
-        MODE(  1,     4, FORMAT_RAW10,       0,   550,    550,   550,    1,  0x3ffff,  0x465,   511,   60,         0)
-        MODE(  2,     2, FORMAT_RAW12,       0,  2200,   2200,  2200,    1,  0x3ffff,  0x465,   511,   60,         0)
+        MODE(  0,     2, FORMAT_RAW10,       0,  1100, 0xffff,  1100,    1,  0x3ffff,  0x465,   511,   60,         0)
+        MODE(  1,     4, FORMAT_RAW10,       0,   550, 0xffff,   550,    1,  0x3ffff,  0x465,   511,   60,         0)
+        MODE(  2,     2, FORMAT_RAW12,       0,  2200, 0xffff,  2200,    1,  0x3ffff,  0x465,   511,   60,         0)
         VMAX_MARGIN(0, 1, 19, 0)
         VMAX_MARGIN(1, 1, 19, 0)
         VMAX_MARGIN(2, 1, 19, 0)
@@ -974,12 +974,12 @@ static void vc_init_ctrl_imx567(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         //                                       hmax    hmax   hmax  vmax      vmax    vmax   blkl  blkl  retrigger
         //   idx  lanes        format  binning    min     max    def   min       max     def    max   def        min
-        MODE(  0,     2, FORMAT_RAW08,       0,   656,    656,   656,   26, 0xffffff,  0x88a,   255,   15,   1058562)
-        MODE(  1,     2, FORMAT_RAW10,       0,   810,    810,   810,   22, 0xffffff,  0x884,  1023,   60,   1273590)
-        MODE(  2,     2, FORMAT_RAW12,       0,   965,    965,   965,   20, 0xffffff,  0x880,  4095,  240,   1514484)
-        MODE(  3,     4, FORMAT_RAW08,       0,   348,    348,   348,   46, 0xffffff,  0x8a8,   255,   15,    553716)
-        MODE(  4,     4, FORMAT_RAW10,       0,   425,    425,   425,   38, 0xffffff,  0x89e,  1023,   60,    673812)
-        MODE(  5,     4, FORMAT_RAW12,       0,   502,    502,   502,   34, 0xffffff,  0x896,  4095,  240,    793692)
+        MODE(  0,     2, FORMAT_RAW08,       0,   656, 0xffff,   656,   26, 0xffffff,  0x88a,   255,   15,   1058562)
+        MODE(  1,     2, FORMAT_RAW10,       0,   810, 0xffff,   810,   22, 0xffffff,  0x884,  1023,   60,   1273590)
+        MODE(  2,     2, FORMAT_RAW12,       0,   965, 0xffff,   965,   20, 0xffffff,  0x880,  4095,  240,   1514484)
+        MODE(  3,     4, FORMAT_RAW08,       0,   348, 0xffff,   348,   46, 0xffffff,  0x8a8,   255,   15,    553716)
+        MODE(  4,     4, FORMAT_RAW10,       0,   425, 0xffff,   425,   38, 0xffffff,  0x89e,  1023,   60,    673812)
+        MODE(  5,     4, FORMAT_RAW12,       0,   502, 0xffff,   502,   34, 0xffffff,  0x896,  4095,  240,    793692)
         VMAX_MARGIN(0, 1, 120, 0)
         VMAX_MARGIN(1, 1, 114, 0)
         VMAX_MARGIN(2, 1, 108, 0)
@@ -988,12 +988,12 @@ static void vc_init_ctrl_imx567(struct vc_ctrl *ctrl, struct vc_desc* desc)
         VMAX_MARGIN(5, 1, 128, 0)
 
         // Binning
-        MODE(  6,     2, FORMAT_RAW08,       1,   348,    348,   348,   48, 0xffffff,  0x488,   255,   15,    285444)
-        MODE(  7,     2, FORMAT_RAW10,       1,   425,    425,   425,   40, 0xffffff,  0x47c,  1023,   60,    346140)
-        MODE(  8,     2, FORMAT_RAW12,       1,   503,    503,   503,   36, 0xffffff,  0x474,  4095,  240,    406782)
-        MODE(  9,     4, FORMAT_RAW08,       1,   194,    194,   194,   80, 0xffffff,  0x4b8,   255,   15,    164214)
-        MODE( 10,     4, FORMAT_RAW10,       1,   232,    232,   232,   68, 0xffffff,  0x4a8,  1023,   60,    194346)
-        MODE( 11,     4, FORMAT_RAW12,       1,   271,    271,   271,   60, 0xffffff,  0x498,  4095,  240,    224640)
+        MODE(  6,     2, FORMAT_RAW08,       1,   348, 0xffff,   348,   48, 0xffffff,  0x488,   255,   15,    285444)
+        MODE(  7,     2, FORMAT_RAW10,       1,   425, 0xffff,   425,   40, 0xffffff,  0x47c,  1023,   60,    346140)
+        MODE(  8,     2, FORMAT_RAW12,       1,   503, 0xffff,   503,   36, 0xffffff,  0x474,  4095,  240,    406782)
+        MODE(  9,     4, FORMAT_RAW08,       1,   194, 0xffff,   194,   80, 0xffffff,  0x4b8,   255,   15,    164214)
+        MODE( 10,     4, FORMAT_RAW10,       1,   232, 0xffff,   232,   68, 0xffffff,  0x4a8,  1023,   60,    194346)
+        MODE( 11,     4, FORMAT_RAW12,       1,   271, 0xffff,   271,   60, 0xffffff,  0x498,  4095,  240,    224640)
         VMAX_MARGIN(6, 1, 116, 0)
         VMAX_MARGIN(7, 1, 108, 0)
         VMAX_MARGIN(8, 1, 100, 0)
@@ -1171,12 +1171,12 @@ static void vc_init_ctrl_imx900(struct vc_ctrl *ctrl, struct vc_desc* desc)
         // measured on the sensor: 460 / 564 / 667. Former 571 / 700 / 829 are the 1188 Mbps values.
         //                                       hmax    hmax   hmax  vmax      vmax    vmax   blkl  blkl  retrigger
         //   idx  lanes        format  binning    min     max    def   min       max     def    max   def        min
-        MODE(  0,     2, FORMAT_RAW08,       0,   460,    460,   460,   99, 0xffffff,   1794,   255,   15,    563060)
-        MODE(  1,     2, FORMAT_RAW10,       0,   564,    564,   564,   99, 0xffffff,   1794,  1023,   60,    688284)
-        MODE(  2,     2, FORMAT_RAW12,       0,   667,    667,   667,   99, 0xffffff,   1794,  4095,  240,    795528)
-        MODE(  3,     4, FORMAT_RAW08,       0,   338,    338,   338,   99, 0xffffff,   1794,   255,   15,    413694)
-        MODE(  4,     4, FORMAT_RAW10,       0,   378,    378,   378,   99, 0xffffff,   1794,  1023,   60,    444204)
-        MODE(  5,     4, FORMAT_RAW12,       0,   610,    610,   610,   99, 0xffffff,   1794,  4095,  240,    727542)
+        MODE(  0,     2, FORMAT_RAW08,       0,   460, 0xffff,   460,   99, 0xffffff,   1794,   255,   15,    563060)
+        MODE(  1,     2, FORMAT_RAW10,       0,   564, 0xffff,   564,   99, 0xffffff,   1794,  1023,   60,    688284)
+        MODE(  2,     2, FORMAT_RAW12,       0,   667, 0xffff,   667,   99, 0xffffff,   1794,  4095,  240,    795528)
+        MODE(  3,     4, FORMAT_RAW08,       0,   338, 0xffff,   338,   99, 0xffffff,   1794,   255,   15,    413694)
+        MODE(  4,     4, FORMAT_RAW10,       0,   378, 0xffff,   378,   99, 0xffffff,   1794,  1023,   60,    444204)
+        MODE(  5,     4, FORMAT_RAW12,       0,   610, 0xffff,   610,   99, 0xffffff,   1794,  4095,  240,    727542)
         // Measured (2 lane RAW8, ROI 192x200): below height + ~255 the image
         // signal drops proportionally (-24% at +219). Keep 258. No floor: a
         // floor of vmax.def would disable the ROI frame rate increase.
