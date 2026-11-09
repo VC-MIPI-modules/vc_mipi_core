@@ -58,6 +58,8 @@
 // the extra registers of base and then of the virtual mode are written, so
 // EXTRA_MODE_REGS() of the virtual mode overwrite or extend the base mode.
 // All other parameters are the same as for MODE().
+// E.g. binning modes that enable binning with sensor registers are virtual
+// modes based on the mode without binning (IMX412, IMX56x).
 #define VIRT_MODE(index, _base, ...) \
         MODE(index, __VA_ARGS__) \
         ctrl->mode[index].virt = true; \
@@ -621,21 +623,21 @@ static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
         // vmax min (= minimum exposure for FLAG_EXPOSURE_NORMAL): measured linear down to 1 line.
         // Black level register 0x3032/0x3033 is in 12-bit units (measured: 64 -> 16 in RAW10):
         // max 4095, default 256 = 64 in RAW10 as the libcamera tuning (black_level 4096) expects.
-        //                                      scale  scale   hmax    hmax   hmax  vmax      vmax    vmax   vmax    vmax   vmax   blkl  blkl  retrigger
-        //   idx  lanes        format  binning      x      y    min     max    def   min       max     def  scale  margin  floor    max   def        min
-        MODE(  0,     2, FORMAT_RAW10,       0,     1,     1,   599, 0xffff,   599,    1,   0xffff, 0x0c14,     1,     52,     0,  4095,  256,         0)
-        MODE(  1,     4, FORMAT_RAW10,       0,     1,     1,   218, 0xffff,   218,    1,   0xffff, 0x0c14,     1,     52,     0,  4095,  256,         0)
+        //                                                 scale  scale  hmax    hmax  hmax  vmax    vmax    vmax   vmax    vmax   vmax  blkl  blkl  retrigger
+        //        idx  base  lanes        format  binning      x      y   min     max   def   min     max     def  scale  margin  floor   max   def        min
+        MODE(       0,           2, FORMAT_RAW10,       0,     1,     1,  599, 0xffff,  599,    1, 0xffff, 0x0c14,     1,     52,     0, 4095,  256,         0)
+        MODE(       1,           4, FORMAT_RAW10,       0,     1,     1,  218, 0xffff,  218,    1, 0xffff, 0x0c14,     1,     52,     0, 4095,  256,         0)
 
-        MODE(  2,     2, FORMAT_RAW10,       1,     1,     2,   436, 0xffff,   436,    1,   0xffff, 0x0624,     0,      0,     0,  4095,  256,         0)
-        MODE(  3,     4, FORMAT_RAW10,       1,     1,     2,   218, 0xffff,   218,    1,   0xffff, 0x0624,     0,      0,     0,  4095,  256,         0)
-        MODE(  4,     2, FORMAT_RAW10,       2,     2,     2,   436, 0xffff,   436,    1,   0xffff, 0x0624,     0,      0,     0,  4095,  256,         0)
-        MODE(  5,     4, FORMAT_RAW10,       2,     2,     2,   218, 0xffff,   218,    1,   0xffff, 0x0624,     0,      0,     0,  4095,  256,         0)
-        MODE(  6,     2, FORMAT_RAW10,       3,     4,     2,   436, 0xffff,   436,    1,   0xffff, 0x0624,     0,      0,     0,  4095,  256,         0)
-        MODE(  7,     4, FORMAT_RAW10,       3,     4,     2,   218, 0xffff,   218,    1,   0xffff, 0x0624,     0,      0,     0,  4095,  256,         0)
-        MODE(  8,     2, FORMAT_RAW10,       4,     8,     2,   436, 0xffff,   436,    1,   0xffff, 0x0624,     0,      0,     0,  4095,  256,         0)
-        MODE(  9,     4, FORMAT_RAW10,       4,     8,     2,   218, 0xffff,   218,    1,   0xffff, 0x0624,     0,      0,     0,  4095,  256,         0)
-        MODE( 10,     2, FORMAT_RAW10,       5,    16,     2,   436, 0xffff,   436,    1,   0xffff, 0x0624,     0,      0,     0,  4095,  256,         0)
-        MODE( 11,     4, FORMAT_RAW10,       5,    16,     2,   218, 0xffff,   218,    1,   0xffff, 0x0624,     0,      0,     0,  4095,  256,         0)
+        VIRT_MODE(  2,    0,     2, FORMAT_RAW10,       1,     1,     2,  436, 0xffff,  436,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
+        VIRT_MODE(  3,    1,     4, FORMAT_RAW10,       1,     1,     2,  218, 0xffff,  218,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
+        VIRT_MODE(  4,    0,     2, FORMAT_RAW10,       2,     2,     2,  436, 0xffff,  436,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
+        VIRT_MODE(  5,    1,     4, FORMAT_RAW10,       2,     2,     2,  218, 0xffff,  218,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
+        VIRT_MODE(  6,    0,     2, FORMAT_RAW10,       3,     4,     2,  436, 0xffff,  436,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
+        VIRT_MODE(  7,    1,     4, FORMAT_RAW10,       3,     4,     2,  218, 0xffff,  218,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
+        VIRT_MODE(  8,    0,     2, FORMAT_RAW10,       4,     8,     2,  436, 0xffff,  436,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
+        VIRT_MODE(  9,    1,     4, FORMAT_RAW10,       4,     8,     2,  218, 0xffff,  218,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
+        VIRT_MODE( 10,    0,     2, FORMAT_RAW10,       5,    16,     2,  436, 0xffff,  436,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
+        VIRT_MODE( 11,    1,     4, FORMAT_RAW10,       5,    16,     2,  218, 0xffff,  218,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
 
         ctrl->clk_ext_trigger           = 37125000;
         ctrl->clk_pixel                 = 37125000;
@@ -755,22 +757,22 @@ static void vc_init_ctrl_imx565(struct vc_ctrl *ctrl, struct vc_desc *desc)
 
         FRAME(0, 0, 4128, 3000)
 
-        //                                      scale  scale   hmax    hmax   hmax  vmax      vmax    vmax   vmax    vmax   vmax   blkl  blkl  retrigger
-        //   idx  lanes        format  binning      x      y    min     max    def   min       max     def  scale  margin  floor    max   def        min
-        MODE(  0,     2, FORMAT_RAW08,       0,     1,     1,  1070, 0xffff,  1070,   18, 0xffffff,  0xc2c,     1,    116,     0,   255,   15,   2410776)
-        MODE(  1,     2, FORMAT_RAW10,       0,     1,     1,  1328, 0xffff,  1328,   16, 0xffffff,  0xc2a,     1,    114,     0,  1023,   60,   2990142)
-        MODE(  2,     2, FORMAT_RAW12,       0,     1,     1,  1586, 0xffff,  1586,   14, 0xffffff,  0xc26,     1,    110,     0,  4095,  240,   3568752)
-        MODE(  3,     4, FORMAT_RAW08,       0,     1,     1,   555, 0xffff,   555,   30, 0xffffff,  0xc40,     1,    136,     0,   255,   15,   1256094)
-        MODE(  4,     4, FORMAT_RAW10,       0,     1,     1,   684, 0xffff,   684,   26, 0xffffff,  0xc3a,     1,    130,     0,  1023,   60,   1546074)
-        MODE(  5,     4, FORMAT_RAW12,       0,     1,     1,   812, 0xffff,   812,   22, 0xffffff,  0xc34,     1,    124,     0,  4095,  240,   1833030)
+        //                                                 scale  scale  hmax    hmax  hmax  vmax      vmax   vmax   vmax    vmax   vmax  blkl  blkl  retrigger
+        //        idx  base  lanes        format  binning      x      y   min     max   def   min       max    def  scale  margin  floor   max   def        min
+        MODE(       0,           2, FORMAT_RAW08,       0,     1,     1, 1070, 0xffff, 1070,   18, 0xffffff, 0xc2c,     1,    116,     0,  255,   15,   2410776)
+        MODE(       1,           2, FORMAT_RAW10,       0,     1,     1, 1328, 0xffff, 1328,   16, 0xffffff, 0xc2a,     1,    114,     0, 1023,   60,   2990142)
+        MODE(       2,           2, FORMAT_RAW12,       0,     1,     1, 1586, 0xffff, 1586,   14, 0xffffff, 0xc26,     1,    110,     0, 4095,  240,   3568752)
+        MODE(       3,           4, FORMAT_RAW08,       0,     1,     1,  555, 0xffff,  555,   30, 0xffffff, 0xc40,     1,    136,     0,  255,   15,   1256094)
+        MODE(       4,           4, FORMAT_RAW10,       0,     1,     1,  684, 0xffff,  684,   26, 0xffffff, 0xc3a,     1,    130,     0, 1023,   60,   1546074)
+        MODE(       5,           4, FORMAT_RAW12,       0,     1,     1,  812, 0xffff,  812,   22, 0xffffff, 0xc34,     1,    124,     0, 4095,  240,   1833030)
 
         // Binning
-        MODE(  6,     2, FORMAT_RAW08,       1,     2,     2,   554, 0xffff,   554,   32, 0xffffff,  0x644,     1,    104,     0,   255,   15,    638982)
-        MODE(  7,     2, FORMAT_RAW10,       1,     2,     2,   683, 0xffff,   683,   28, 0xffffff,  0x640,     1,    100,     0,  1023,   60,    785808)
-        MODE(  8,     2, FORMAT_RAW12,       1,     2,     2,   812, 0xffff,   812,   24, 0xffffff,  0x638,     1,     92,     0,  4095,  240,    931878)
-        MODE(  9,     4, FORMAT_RAW08,       1,     2,     2,   297, 0xffff,   297,   52, 0xffffff,  0x668,     1,    140,     0,   255,   15,    347760)
-        MODE( 10,     4, FORMAT_RAW10,       1,     2,     2,   361, 0xffff,   361,   44, 0xffffff,  0x65c,     1,    128,     0,  1023,   60,    420552)
-        MODE( 11,     4, FORMAT_RAW12,       1,     2,     2,   425, 0xffff,   425,   40, 0xffffff,  0x654,     1,    120,     0,  4095,  240,    493884)
+        VIRT_MODE(  6,    0,     2, FORMAT_RAW08,       1,     2,     2,  554, 0xffff,  554,   32, 0xffffff, 0x644,     1,    104,     0,  255,   15,    638982)
+        VIRT_MODE(  7,    1,     2, FORMAT_RAW10,       1,     2,     2,  683, 0xffff,  683,   28, 0xffffff, 0x640,     1,    100,     0, 1023,   60,    785808)
+        VIRT_MODE(  8,    2,     2, FORMAT_RAW12,       1,     2,     2,  812, 0xffff,  812,   24, 0xffffff, 0x638,     1,     92,     0, 4095,  240,    931878)
+        VIRT_MODE(  9,    3,     4, FORMAT_RAW08,       1,     2,     2,  297, 0xffff,  297,   52, 0xffffff, 0x668,     1,    140,     0,  255,   15,    347760)
+        VIRT_MODE( 10,    4,     4, FORMAT_RAW10,       1,     2,     2,  361, 0xffff,  361,   44, 0xffffff, 0x65c,     1,    128,     0, 1023,   60,    420552)
+        VIRT_MODE( 11,    5,     4, FORMAT_RAW12,       1,     2,     2,  425, 0xffff,  425,   40, 0xffffff, 0x654,     1,    120,     0, 4095,  240,    493884)
 
         EXTRA_MODE_REGS(  0, IMX56X_BINNING_OFF)
         EXTRA_MODE_REGS(  1, IMX56X_BINNING_OFF)
@@ -817,22 +819,22 @@ static void vc_init_ctrl_imx566(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         FRAME(0, 0, 2848, 2848)
 
-        //                                      scale  scale   hmax    hmax   hmax  vmax      vmax    vmax   vmax    vmax   vmax   blkl  blkl  retrigger
-        //   idx  lanes        format  binning      x      y    min     max    def   min       max     def  scale  margin  floor    max   def        min
-        MODE(  0,     2, FORMAT_RAW08,       0,     1,     1,   752, 0xffff,   752,   24, 0xffffff,  0xb98,     1,    120,     0,   255,   15,   1612278)
-        MODE(  1,     2, FORMAT_RAW10,       0,     1,     1,   930, 0xffff,   930,   20, 0xffffff,  0xb92,     1,    114,     0,  1023,   60,   1991196)
-        MODE(  2,     2, FORMAT_RAW12,       0,     1,     1,  1109, 0xffff,  1109,   18, 0xffffff,  0xb8c,     1,    108,     0,  4095,  240,   2371194)
-        MODE(  3,     4, FORMAT_RAW08,       0,     1,     1,   396, 0xffff,   396,   40, 0xffffff,  0xbb0,     1,    144,     0,   255,   15,    854172)
-        MODE(  4,     4, FORMAT_RAW10,       0,     1,     1,   485, 0xffff,   485,   34, 0xffffff,  0xba6,     1,    134,     0,  1023,   60,   1043334)
-        MODE(  5,     4, FORMAT_RAW12,       0,     1,     1,   574, 0xffff,   574,   30, 0xffffff,  0xba0,     1,    128,     0,  4095,  240,   1233144)
+        //                                                 scale  scale  hmax    hmax  hmax  vmax      vmax   vmax   vmax    vmax   vmax  blkl  blkl  retrigger
+        //        idx  base  lanes        format  binning      x      y   min     max   def   min       max    def  scale  margin  floor   max   def        min
+        MODE(       0,           2, FORMAT_RAW08,       0,     1,     1,  752, 0xffff,  752,   24, 0xffffff, 0xb98,     1,    120,     0,  255,   15,   1612278)
+        MODE(       1,           2, FORMAT_RAW10,       0,     1,     1,  930, 0xffff,  930,   20, 0xffffff, 0xb92,     1,    114,     0, 1023,   60,   1991196)
+        MODE(       2,           2, FORMAT_RAW12,       0,     1,     1, 1109, 0xffff, 1109,   18, 0xffffff, 0xb8c,     1,    108,     0, 4095,  240,   2371194)
+        MODE(       3,           4, FORMAT_RAW08,       0,     1,     1,  396, 0xffff,  396,   40, 0xffffff, 0xbb0,     1,    144,     0,  255,   15,    854172)
+        MODE(       4,           4, FORMAT_RAW10,       0,     1,     1,  485, 0xffff,  485,   34, 0xffffff, 0xba6,     1,    134,     0, 1023,   60,   1043334)
+        MODE(       5,           4, FORMAT_RAW12,       0,     1,     1,  574, 0xffff,  574,   30, 0xffffff, 0xba0,     1,    128,     0, 4095,  240,   1233144)
 
         // Binning
-        MODE(  6,     2, FORMAT_RAW08,       1,     2,     2,   396, 0xffff,   396,   40, 0xffffff,  0x604,     1,    116,     0,   255,   15,    430812)
-        MODE(  7,     2, FORMAT_RAW10,       1,     2,     2,   485, 0xffff,   485,   36, 0xffffff,  0x5fc,     1,    108,     0,  1023,   60,    524826)
-        MODE(  8,     2, FORMAT_RAW12,       1,     2,     2,   575, 0xffff,   575,   32, 0xffffff,  0x5f4,     1,    100,     0,  4095,  240,    620568)
-        MODE(  9,     4, FORMAT_RAW08,       1,     2,     2,   218, 0xffff,   218,   72, 0xffffff,  0x634,     1,    164,     0,   255,   15,    242892)
-        MODE( 10,     4, FORMAT_RAW10,       1,     2,     2,   262, 0xffff,   262,   60, 0xffffff,  0x620,     1,    144,     0,  1023,   60,    288846)
-        MODE( 11,     4, FORMAT_RAW12,       1,     2,     2,   307, 0xffff,   307,   52, 0xffffff,  0x614,     1,    132,     0,  4095,  240,    336690)
+        VIRT_MODE(  6,    0,     2, FORMAT_RAW08,       1,     2,     2,  396, 0xffff,  396,   40, 0xffffff, 0x604,     1,    116,     0,  255,   15,    430812)
+        VIRT_MODE(  7,    1,     2, FORMAT_RAW10,       1,     2,     2,  485, 0xffff,  485,   36, 0xffffff, 0x5fc,     1,    108,     0, 1023,   60,    524826)
+        VIRT_MODE(  8,    2,     2, FORMAT_RAW12,       1,     2,     2,  575, 0xffff,  575,   32, 0xffffff, 0x5f4,     1,    100,     0, 4095,  240,    620568)
+        VIRT_MODE(  9,    3,     4, FORMAT_RAW08,       1,     2,     2,  218, 0xffff,  218,   72, 0xffffff, 0x634,     1,    164,     0,  255,   15,    242892)
+        VIRT_MODE( 10,    4,     4, FORMAT_RAW10,       1,     2,     2,  262, 0xffff,  262,   60, 0xffffff, 0x620,     1,    144,     0, 1023,   60,    288846)
+        VIRT_MODE( 11,    5,     4, FORMAT_RAW12,       1,     2,     2,  307, 0xffff,  307,   52, 0xffffff, 0x614,     1,    132,     0, 4095,  240,    336690)
 
         EXTRA_MODE_REGS(  0, IMX56X_BINNING_OFF)
         EXTRA_MODE_REGS(  1, IMX56X_BINNING_OFF)
@@ -879,22 +881,22 @@ static void vc_init_ctrl_imx567(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         FRAME(0, 0, 2464, 2064)
 
-        //                                      scale  scale   hmax    hmax   hmax  vmax      vmax    vmax   vmax    vmax   vmax   blkl  blkl  retrigger
-        //   idx  lanes        format  binning      x      y    min     max    def   min       max     def  scale  margin  floor    max   def        min
-        MODE(  0,     2, FORMAT_RAW08,       0,     1,     1,   656, 0xffff,   656,   26, 0xffffff,  0x88a,     1,    120,     0,   255,   15,   1058562)
-        MODE(  1,     2, FORMAT_RAW10,       0,     1,     1,   810, 0xffff,   810,   22, 0xffffff,  0x884,     1,    114,     0,  1023,   60,   1273590)
-        MODE(  2,     2, FORMAT_RAW12,       0,     1,     1,   965, 0xffff,   965,   20, 0xffffff,  0x880,     1,    108,     0,  4095,  240,   1514484)
-        MODE(  3,     4, FORMAT_RAW08,       0,     1,     1,   348, 0xffff,   348,   46, 0xffffff,  0x8a8,     1,    144,     0,   255,   15,    553716)
-        MODE(  4,     4, FORMAT_RAW10,       0,     1,     1,   425, 0xffff,   425,   38, 0xffffff,  0x89e,     1,    134,     0,  1023,   60,    673812)
-        MODE(  5,     4, FORMAT_RAW12,       0,     1,     1,   502, 0xffff,   502,   34, 0xffffff,  0x896,     1,    128,     0,  4095,  240,    793692)
+        //                                                 scale  scale  hmax    hmax  hmax  vmax      vmax   vmax   vmax    vmax   vmax  blkl  blkl  retrigger
+        //        idx  base  lanes        format  binning      x      y   min     max   def   min       max    def  scale  margin  floor   max   def        min
+        MODE(       0,           2, FORMAT_RAW08,       0,     1,     1,  656, 0xffff,  656,   26, 0xffffff, 0x88a,     1,    120,     0,  255,   15,   1058562)
+        MODE(       1,           2, FORMAT_RAW10,       0,     1,     1,  810, 0xffff,  810,   22, 0xffffff, 0x884,     1,    114,     0, 1023,   60,   1273590)
+        MODE(       2,           2, FORMAT_RAW12,       0,     1,     1,  965, 0xffff,  965,   20, 0xffffff, 0x880,     1,    108,     0, 4095,  240,   1514484)
+        MODE(       3,           4, FORMAT_RAW08,       0,     1,     1,  348, 0xffff,  348,   46, 0xffffff, 0x8a8,     1,    144,     0,  255,   15,    553716)
+        MODE(       4,           4, FORMAT_RAW10,       0,     1,     1,  425, 0xffff,  425,   38, 0xffffff, 0x89e,     1,    134,     0, 1023,   60,    673812)
+        MODE(       5,           4, FORMAT_RAW12,       0,     1,     1,  502, 0xffff,  502,   34, 0xffffff, 0x896,     1,    128,     0, 4095,  240,    793692)
 
         // Binning
-        MODE(  6,     2, FORMAT_RAW08,       1,     2,     2,   348, 0xffff,   348,   48, 0xffffff,  0x488,     1,    116,     0,   255,   15,    285444)
-        MODE(  7,     2, FORMAT_RAW10,       1,     2,     2,   425, 0xffff,   425,   40, 0xffffff,  0x47c,     1,    108,     0,  1023,   60,    346140)
-        MODE(  8,     2, FORMAT_RAW12,       1,     2,     2,   503, 0xffff,   503,   36, 0xffffff,  0x474,     1,    100,     0,  4095,  240,    406782)
-        MODE(  9,     4, FORMAT_RAW08,       1,     2,     2,   194, 0xffff,   194,   80, 0xffffff,  0x4b8,     1,    164,     0,   255,   15,    164214)
-        MODE( 10,     4, FORMAT_RAW10,       1,     2,     2,   232, 0xffff,   232,   68, 0xffffff,  0x4a8,     1,    144,     0,  1023,   60,    194346)
-        MODE( 11,     4, FORMAT_RAW12,       1,     2,     2,   271, 0xffff,   271,   60, 0xffffff,  0x498,     1,    132,     0,  4095,  240,    224640)
+        VIRT_MODE(  6,    0,     2, FORMAT_RAW08,       1,     2,     2,  348, 0xffff,  348,   48, 0xffffff, 0x488,     1,    116,     0,  255,   15,    285444)
+        VIRT_MODE(  7,    1,     2, FORMAT_RAW10,       1,     2,     2,  425, 0xffff,  425,   40, 0xffffff, 0x47c,     1,    108,     0, 1023,   60,    346140)
+        VIRT_MODE(  8,    2,     2, FORMAT_RAW12,       1,     2,     2,  503, 0xffff,  503,   36, 0xffffff, 0x474,     1,    100,     0, 4095,  240,    406782)
+        VIRT_MODE(  9,    3,     4, FORMAT_RAW08,       1,     2,     2,  194, 0xffff,  194,   80, 0xffffff, 0x4b8,     1,    164,     0,  255,   15,    164214)
+        VIRT_MODE( 10,    4,     4, FORMAT_RAW10,       1,     2,     2,  232, 0xffff,  232,   68, 0xffffff, 0x4a8,     1,    144,     0, 1023,   60,    194346)
+        VIRT_MODE( 11,    5,     4, FORMAT_RAW12,       1,     2,     2,  271, 0xffff,  271,   60, 0xffffff, 0x498,     1,    132,     0, 4095,  240,    224640)
 
         EXTRA_MODE_REGS(  0, IMX56X_BINNING_OFF)
         EXTRA_MODE_REGS(  1, IMX56X_BINNING_OFF)
@@ -946,22 +948,22 @@ static void vc_init_ctrl_imx568(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->csr.sen.mode_operating    = 0x00;
 
         FRAME(0, 0, 2464, 2064)
-        //                                      scale  scale   hmax    hmax   hmax  vmax      vmax    vmax   vmax    vmax   vmax   blkl  blkl  retrigger
-        //   idx  lanes        format  binning      x      y    min     max    def   min       max     def  scale  margin  floor    max   def        min
-        MODE(  0,     2, FORMAT_RAW08,       0,     1,     1,   656, 0xffff,   656,   26, 0xffffff,  0x88a,     1,    122,     0,   255,   15,   1058562)
-        MODE(  1,     2, FORMAT_RAW10,       0,     1,     1,   810, 0xffff,   810,   22, 0xffffff,  0x884,     1,    116,     0,  1023,   60,   1273590)
-        MODE(  2,     2, FORMAT_RAW12,       0,     1,     1,   965, 0xffff,   965,   20, 0xffffff,  0x880,     1,    112,     0,  4095,  240,   1514484)
-        MODE(  3,     4, FORMAT_RAW08,       0,     1,     1,   348, 0xffff,   370,   46, 0xffffff,  0x8a8,     1,    152,     0,   255,   15,    553716)
-        MODE(  4,     4, FORMAT_RAW10,       0,     1,     1,   425, 0xffff,   425,   38, 0xffffff,  0x89e,     1,    142,     0,  1023,   60,    673812)
-        MODE(  5,     4, FORMAT_RAW12,       0,     1,     1,   502, 0xffff,   502,   34, 0xffffff,  0x896,     1,    134,     0,  4095,  240,    793692)
+        //                                                 scale  scale  hmax    hmax  hmax  vmax      vmax   vmax   vmax    vmax   vmax  blkl  blkl  retrigger
+        //        idx  base  lanes        format  binning      x      y   min     max   def   min       max    def  scale  margin  floor   max   def        min
+        MODE(       0,           2, FORMAT_RAW08,       0,     1,     1,  656, 0xffff,  656,   26, 0xffffff, 0x88a,     1,    122,     0,  255,   15,   1058562)
+        MODE(       1,           2, FORMAT_RAW10,       0,     1,     1,  810, 0xffff,  810,   22, 0xffffff, 0x884,     1,    116,     0, 1023,   60,   1273590)
+        MODE(       2,           2, FORMAT_RAW12,       0,     1,     1,  965, 0xffff,  965,   20, 0xffffff, 0x880,     1,    112,     0, 4095,  240,   1514484)
+        MODE(       3,           4, FORMAT_RAW08,       0,     1,     1,  348, 0xffff,  370,   46, 0xffffff, 0x8a8,     1,    152,     0,  255,   15,    553716)
+        MODE(       4,           4, FORMAT_RAW10,       0,     1,     1,  425, 0xffff,  425,   38, 0xffffff, 0x89e,     1,    142,     0, 1023,   60,    673812)
+        MODE(       5,           4, FORMAT_RAW12,       0,     1,     1,  502, 0xffff,  502,   34, 0xffffff, 0x896,     1,    134,     0, 4095,  240,    793692)
 
         // Binning
-        MODE(  6,     2, FORMAT_RAW08,       1,     2,     2,   348, 0xffff,   348,   48, 0xffffff,  0x488,     1,    128,     0,   255,   15,    285444)
-        MODE(  7,     2, FORMAT_RAW10,       1,     2,     2,   425, 0xffff,   425,   40, 0xffffff,  0x47c,     1,    116,     0,  1023,   60,    346140)
-        MODE(  8,     2, FORMAT_RAW12,       1,     2,     2,   503, 0xffff,   503,   36, 0xffffff,  0x474,     1,    108,     0,  4095,  240,    406782)
-        MODE(  9,     4, FORMAT_RAW08,       1,     2,     2,   194, 0xffff,   194,   80, 0xffffff,  0x4b8,     1,    176,     0,   255,   15,    164214)
-        MODE( 10,     4, FORMAT_RAW10,       1,     2,     2,   232, 0xffff,   232,   68, 0xffffff,  0x4a8,     1,    160,     0,  1023,   60,    194346)
-        MODE( 11,     4, FORMAT_RAW12,       1,     2,     2,   271, 0xffff,   271,   60, 0xffffff,  0x498,     1,    144,     0,  4095,  240,    224640)
+        VIRT_MODE(  6,    0,     2, FORMAT_RAW08,       1,     2,     2,  348, 0xffff,  348,   48, 0xffffff, 0x488,     1,    128,     0,  255,   15,    285444)
+        VIRT_MODE(  7,    1,     2, FORMAT_RAW10,       1,     2,     2,  425, 0xffff,  425,   40, 0xffffff, 0x47c,     1,    116,     0, 1023,   60,    346140)
+        VIRT_MODE(  8,    2,     2, FORMAT_RAW12,       1,     2,     2,  503, 0xffff,  503,   36, 0xffffff, 0x474,     1,    108,     0, 4095,  240,    406782)
+        VIRT_MODE(  9,    3,     4, FORMAT_RAW08,       1,     2,     2,  194, 0xffff,  194,   80, 0xffffff, 0x4b8,     1,    176,     0,  255,   15,    164214)
+        VIRT_MODE( 10,    4,     4, FORMAT_RAW10,       1,     2,     2,  232, 0xffff,  232,   68, 0xffffff, 0x4a8,     1,    160,     0, 1023,   60,    194346)
+        VIRT_MODE( 11,    5,     4, FORMAT_RAW12,       1,     2,     2,  271, 0xffff,  271,   60, 0xffffff, 0x498,     1,    144,     0, 4095,  240,    224640)
 
         EXTRA_MODE_REGS(  0, IMX56X_BINNING_OFF)
         EXTRA_MODE_REGS(  1, IMX56X_BINNING_OFF)
