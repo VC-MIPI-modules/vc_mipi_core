@@ -68,7 +68,6 @@ enum vc_cfa_pattern {
 #define FORMAT_RAW14                    0x2d
 
 #define MAX_VC_MODES                    16
-#define MAX_BINNING_MODE_REGS           16
 #define MAX_EXTRA_MODE_REGS             8
 
 #define MAX_MBUS_CODES                  5
@@ -216,12 +215,10 @@ typedef struct vc_mode {
         __u32      vmax_row_margin;
         __u32      vmax_row_floor;
         __u32      vmax_row_scale;
-        struct vc_reg binning_mode_regs[MAX_BINNING_MODE_REGS];
-        // Extra registers written unconditionally whenever this mode is
-        // selected (unlike binning_mode_regs, not gated on binning_mode > 0 /
-        // FLAG_USE_BINNING_INDEX) -- for mode-specific sensor config that
-        // isn't itself a binning setting, e.g. AR2020's eDR-mode CSI2 data
-        // type tag (see vc_sen_write_extra_mode_regs() in vc_mipi_core.c).
+        // Extra sensor registers written whenever this mode is selected, after
+        // the ROI has been set (see vc_sen_write_extra_mode_regs() in
+        // vc_mipi_core.c), e.g. AR2020's eDR-mode CSI2 data type tag or the
+        // IMX56x timing registers for binning modes.
         struct vc_reg extra_regs[MAX_EXTRA_MODE_REGS];
         // Set true for modes where the sensor's analogue gain register is
         // silently ignored by hardware (e.g. AR2020's eDR/HDR mode -- its

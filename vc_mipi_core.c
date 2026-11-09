@@ -86,7 +86,6 @@ int vc_mod_set_power(struct vc_cam *cam, int on);
 int vc_mod_is_trigger_enabled(struct vc_cam *cam);
 int vc_mod_get_io_mode(struct vc_cam *cam);
 int vc_core_get_mode_index(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
-int vc_sen_write_binning_mode_regs(struct vc_cam *cam);
 int vc_sen_write_extra_mode_regs(struct vc_cam *cam);
 int vc_sen_write_mode(struct vc_ctrl *ctrl, int mode);
 int vc_sen_set_hmax(struct vc_cam *cam);
@@ -1940,40 +1939,9 @@ int vc_core_get_mode_index(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8
         return -1;
 }
 
-int vc_sen_write_binning_mode_regs(struct vc_cam *cam)
-{
-        struct vc_ctrl *ctrl = &cam->ctrl;
-        struct vc_state *state = &cam->state;
-        struct device *dev = &ctrl->client_sen->dev;
-        struct i2c_client *client = ctrl->client_sen;
-        __u8 format = vc_core_mbus_code_to_format(state->format_code);
-
-        int iTmp = 0;
-        int mode_index = -1;
-        int ret = 0;
-
-        if (0 < state->binning_mode)
-        {
-                mode_index = vc_core_get_mode_index(cam, state->num_lanes, format, state->binning_mode);
-                if ((0 <= mode_index) && (mode_index < MAX_VC_MODES) && (ctrl->flags & FLAG_USE_BINNING_INDEX))
-                {
-                        while (ctrl->mode[mode_index].binning_mode_regs[iTmp].address > 0)
-                        {
-                                ret |= i2c_write_reg(dev, client, ctrl->mode[mode_index].binning_mode_regs[iTmp].address, ctrl->mode[mode_index].binning_mode_regs[iTmp].value, __FUNCTION__);
-                                iTmp++;
-                        }
-
-                        ret |= i2c_write_reg4(dev, client, &ctrl->csr.sen.hmax, ctrl->mode[mode_index].hmax.def, __FUNCTION__);
-                }
-        }
-
-        return ret;
-}
-
-// Unlike vc_sen_write_binning_mode_regs(), applied whenever the current
-// (num_lanes, format, binning) mode is selected, regardless of binning_mode
-// or FLAG_USE_BINNING_INDEX -- for mode-specific register writes that aren't
-// binning settings (see vc_mode.extra_regs in vc_mipi_core.h).
+// Writes the extra registers of the current mode (see vc_mode.extra_regs in
+// vc_mipi_core.h). Applied whenever the mode is selected, independent of
+// the binning mode.
 int vc_sen_write_extra_mode_regs(struct vc_cam *cam)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
@@ -2099,7 +2067,6 @@ int vc_sen_set_roi(struct vc_cam *cam)
                 ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.w_width, w_width, __FUNCTION__);
                 ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.w_height, w_height, __FUNCTION__);
         }
-        ret |= vc_sen_write_binning_mode_regs(cam);
         ret |= vc_sen_set_hmax(cam);
 
         if (ret) {
