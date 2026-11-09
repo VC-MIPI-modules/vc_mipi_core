@@ -51,14 +51,23 @@
 // (see vc_mode.extra_regs / vc_sen_write_extra_mode_regs()).
 #define EXTRA_MODE_REGS(_mode, ...) \
         if (MAX_VC_MODES > _mode) { \
-                do { \
-                        const struct vc_reg _extra_mode_regs [] = { __VA_ARGS__ }; \
-                        int ers = 0; \
-                        ers = sizeof(_extra_mode_regs) / sizeof(vc_reg); \
-                                if (MAX_EXTRA_MODE_REGS > ers) { \
-                                        memcpy(&ctrl->mode[_mode].extra_regs, _extra_mode_regs, sizeof(_extra_mode_regs)); \
-                                } \
-                } while (0); \
+                const struct vc_reg _extra_mode_regs [] = { __VA_ARGS__ }; \
+                /* One entry is needed as {0, 0} terminator */ \
+                BUILD_BUG_ON(ARRAY_SIZE(_extra_mode_regs) >= MAX_EXTRA_MODE_REGS); \
+                memcpy(&ctrl->mode[_mode].extra_regs, _extra_mode_regs, sizeof(_extra_mode_regs)); \
+        }
+
+// Binning scale factors (x, y) for all modes with the given binning index.
+// Has to be placed after the MODE() definitions.
+#define BINNING_FACTORS(_binning, _h_scale, _v_scale) \
+        { \
+                int _i; \
+                for (_i = 0; _i < MAX_VC_MODES; _i++) { \
+                        if (ctrl->mode[_i].num_lanes != 0 && ctrl->mode[_i].binning == _binning) { \
+                                ctrl->mode[_i].h_scale = _h_scale; \
+                                ctrl->mode[_i].v_scale = _v_scale; \
+                        } \
+                } \
         }
 
 
@@ -388,8 +397,7 @@ static void vc_init_ctrl_imx273(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE( 10,     4, FORMAT_RAW10,       1,   250, 0xffff,   250,   15,  0xfffff,    586,     0,      0,     0,  1032,   60,    519230)
         MODE( 11,     4, FORMAT_RAW12,       1,   396, 0xffff,   396,   15,  0xfffff,    586,     0,      0,     0,  4095,  240,    519230)
 
-        BINNING(ctrl->binnings[0], 0, 0)
-        BINNING(ctrl->binnings[1], 2, 2)
+        BINNING_FACTORS(1, 2, 2)
 
         TOUT(ctrl->tout, \
                 0x0226,  /* toutsel_reg */ \
@@ -454,8 +462,7 @@ static void vc_init_ctrl_imx296(struct vc_ctrl *ctrl, struct vc_desc* desc)
                 ((vc_csr4){.l=0x3080, .m=0x3081, .h = 0x3082, .u = 0x0000 })   /* pulse2_dn_reg */ \
            );  
 
-        BINNING(ctrl->binnings[0], 0, 0)
-        BINNING(ctrl->binnings[1], 2, 2)
+        BINNING_FACTORS(1, 2, 2)
 
         
         
@@ -579,6 +586,23 @@ static void vc_init_ctrl_imx392(struct vc_ctrl *ctrl, struct vc_desc* desc)
 #define IMX412_BINNING_TYPE_H_EXT      0x3f43
 #define IMX412_BLACKLEVEL_ENABLE       0x3030
 
+#define IMX412_BINNING_OFF \
+        { IMX412_BINNING_MODE, IMX412_BINNING_MODE_DISABLE }, \
+        { IMX412_BINNING_TYPE, 0x11 }, \
+        { IMX412_BLACKLEVEL_ENABLE, 0x01 }
+#define IMX412_BINNING(type) \
+        { IMX412_BINNING_MODE, IMX412_BINNING_MODE_ENABLE }, \
+        { IMX412_BINNING_WEIGHTING, IMX412_BINNING_WEIGHTING_SUM }, \
+        { IMX412_BINNING_TYPE, type }, \
+        { IMX412_BLACKLEVEL_ENABLE, 0x01 }
+#define IMX412_BINNING_16X2 \
+        { IMX412_BINNING_MODE, IMX412_BINNING_MODE_ENABLE }, \
+        { IMX412_BINNING_WEIGHTING, IMX412_BINNING_WEIGHTING_SUM }, \
+        { IMX412_BINNING_TYPE, 0x02 }, \
+        { IMX412_BINNING_TYPE_EXT_EN, 0x01 }, \
+        { IMX412_BINNING_TYPE_H_EXT, 0x01 }, \
+        { IMX412_BLACKLEVEL_ENABLE, 0x01 }
+
 static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         INIT_MESSAGE("IMX412")
@@ -616,43 +640,24 @@ static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->clk_ext_trigger           = 37125000;
         ctrl->clk_pixel                 = 37125000;
 
-        BINNING_START(ctrl->binnings[0], 0, 0)
-                { IMX412_BINNING_MODE, IMX412_BINNING_MODE_DISABLE },
-                { IMX412_BINNING_TYPE, 0x11 },
-                { IMX412_BLACKLEVEL_ENABLE, 0x01 }
-        BINNING_END(ctrl->binnings[0])
-        BINNING_START(ctrl->binnings[1], 1, 2)
-                { IMX412_BINNING_MODE, IMX412_BINNING_MODE_ENABLE },
-                { IMX412_BINNING_WEIGHTING, IMX412_BINNING_WEIGHTING_SUM },
-                { IMX412_BINNING_TYPE, 0x12 },
-                { IMX412_BLACKLEVEL_ENABLE, 0x01 }
-        BINNING_END(ctrl->binnings[1])
-        BINNING_START(ctrl->binnings[2], 2, 2)
-                { IMX412_BINNING_MODE, IMX412_BINNING_MODE_ENABLE },
-                { IMX412_BINNING_WEIGHTING, IMX412_BINNING_WEIGHTING_SUM },
-                { IMX412_BINNING_TYPE, 0x22 },
-                { IMX412_BLACKLEVEL_ENABLE, 0x01 }
-        BINNING_END(ctrl->binnings[2])
-        BINNING_START(ctrl->binnings[3], 4, 2)
-                { IMX412_BINNING_MODE, IMX412_BINNING_MODE_ENABLE },
-                { IMX412_BINNING_WEIGHTING, IMX412_BINNING_WEIGHTING_SUM },
-                { IMX412_BINNING_TYPE, 0x42 },
-                { IMX412_BLACKLEVEL_ENABLE, 0x01 }
-        BINNING_END(ctrl->binnings[3])
-        BINNING_START(ctrl->binnings[4], 8, 2)
-                { IMX412_BINNING_MODE, IMX412_BINNING_MODE_ENABLE },
-                { IMX412_BINNING_WEIGHTING, IMX412_BINNING_WEIGHTING_SUM },
-                { IMX412_BINNING_TYPE, 0x82 },
-                { IMX412_BLACKLEVEL_ENABLE, 0x01 }
-        BINNING_END(ctrl->binnings[4])
-        BINNING_START(ctrl->binnings[5], 16, 2)
-                { IMX412_BINNING_MODE, IMX412_BINNING_MODE_ENABLE },
-                { IMX412_BINNING_WEIGHTING, IMX412_BINNING_WEIGHTING_SUM },
-                { IMX412_BINNING_TYPE, 0x02 },
-                { IMX412_BINNING_TYPE_EXT_EN, 0x01 },
-                { IMX412_BINNING_TYPE_H_EXT, 0x01 },
-                { IMX412_BLACKLEVEL_ENABLE, 0x01 }
-        BINNING_END(ctrl->binnings[5])
+        EXTRA_MODE_REGS( 0, IMX412_BINNING_OFF)
+        EXTRA_MODE_REGS( 1, IMX412_BINNING_OFF)
+        EXTRA_MODE_REGS( 2, IMX412_BINNING(0x12))
+        EXTRA_MODE_REGS( 3, IMX412_BINNING(0x12))
+        EXTRA_MODE_REGS( 4, IMX412_BINNING(0x22))
+        EXTRA_MODE_REGS( 5, IMX412_BINNING(0x22))
+        EXTRA_MODE_REGS( 6, IMX412_BINNING(0x42))
+        EXTRA_MODE_REGS( 7, IMX412_BINNING(0x42))
+        EXTRA_MODE_REGS( 8, IMX412_BINNING(0x82))
+        EXTRA_MODE_REGS( 9, IMX412_BINNING(0x82))
+        EXTRA_MODE_REGS(10, IMX412_BINNING_16X2)
+        EXTRA_MODE_REGS(11, IMX412_BINNING_16X2)
+
+        BINNING_FACTORS(1,  1, 2)
+        BINNING_FACTORS(2,  2, 2)
+        BINNING_FACTORS(3,  4, 2)
+        BINNING_FACTORS(4,  8, 2)
+        BINNING_FACTORS(5, 16, 2)
 
         ctrl->max_binning_modes_used = 5;
 
@@ -729,6 +734,13 @@ static void vc_init_ctrl_imx462(struct vc_ctrl *ctrl, struct vc_desc *desc)
 #define IMX56X_GAINDLY                  0x30e5
 #define IMX56X_GSDLY                    0x30e6
 
+#define IMX56X_BINNING_OFF \
+        { IMX56X_HV_MODE, IMX56X_BINNING_MODE_DISABLE }, \
+        { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
+#define IMX56X_BINNING_2X2 \
+        { IMX56X_HV_MODE, IMX56X_BINNING_MODE_ENABLE }, \
+        { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
+
 // ------------------------------------------------------------------------------------------------
 //  Settings for IMX565 (Rev.03)
 //  12.4 MegaPixel Pregius S
@@ -766,23 +778,22 @@ static void vc_init_ctrl_imx565(struct vc_ctrl *ctrl, struct vc_desc *desc)
         MODE( 10,     4, FORMAT_RAW10,       1,   361, 0xffff,   361,   44, 0xffffff,  0x65c,     1,    128,     0,  1023,   60,    420552)
         MODE( 11,     4, FORMAT_RAW12,       1,   425, 0xffff,   425,   40, 0xffffff,  0x654,     1,    120,     0,  4095,  240,    493884)
 
+        EXTRA_MODE_REGS(  0, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  1, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  2, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  3, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  4, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  5, IMX56X_BINNING_OFF)
+
         // Special timing registers for binning modes
-        EXTRA_MODE_REGS(  6, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x1c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x0c })
-        EXTRA_MODE_REGS(  7, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x18 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x0c })
-        EXTRA_MODE_REGS(  8, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x14 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x08 })
-        EXTRA_MODE_REGS(  9, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x30 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x18 })
-        EXTRA_MODE_REGS( 10, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x28 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x14 })
-        EXTRA_MODE_REGS( 11, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x24 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 })
+        EXTRA_MODE_REGS(  6, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x1c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x0c })
+        EXTRA_MODE_REGS(  7, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x18 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x0c })
+        EXTRA_MODE_REGS(  8, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x14 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x08 })
+        EXTRA_MODE_REGS(  9, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x30 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x18 })
+        EXTRA_MODE_REGS( 10, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x28 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x14 })
+        EXTRA_MODE_REGS( 11, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x24 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 })
 
-        BINNING_START(ctrl->binnings[0], 0, 0)
-                { IMX56X_HV_MODE, IMX56X_BINNING_MODE_DISABLE },
-                { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
-        BINNING_END(ctrl->binnings[0])
-
-        BINNING_START(ctrl->binnings[1], 2, 2)
-                { IMX56X_HV_MODE, IMX56X_BINNING_MODE_ENABLE },
-                { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
-        BINNING_END(ctrl->binnings[1])
+        BINNING_FACTORS(1, 2, 2)
 
         ctrl->max_binning_modes_used = 1;
 
@@ -831,23 +842,22 @@ static void vc_init_ctrl_imx566(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE( 10,     4, FORMAT_RAW10,       1,   262, 0xffff,   262,   60, 0xffffff,  0x620,     1,    144,     0,  1023,   60,    288846)
         MODE( 11,     4, FORMAT_RAW12,       1,   307, 0xffff,   307,   52, 0xffffff,  0x614,     1,    132,     0,  4095,  240,    336690)
 
+        EXTRA_MODE_REGS(  0, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  1, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  2, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  3, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  4, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  5, IMX56X_BINNING_OFF)
+
         // Special timing registers for binning modes
-        EXTRA_MODE_REGS(  6, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x24 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 })
-        EXTRA_MODE_REGS(  7, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x20 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 })
-        EXTRA_MODE_REGS(  8, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x1c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x0c })
-        EXTRA_MODE_REGS(  9, { IMX56X_GMRWT, 0x0c }, { IMX56X_GMTWT, 0x44 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x1c })
-        EXTRA_MODE_REGS( 10, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x38 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x18 })
-        EXTRA_MODE_REGS( 11, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x30 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x14 })
+        EXTRA_MODE_REGS(  6, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x24 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 })
+        EXTRA_MODE_REGS(  7, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x20 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 })
+        EXTRA_MODE_REGS(  8, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x1c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x0c })
+        EXTRA_MODE_REGS(  9, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x0c }, { IMX56X_GMTWT, 0x44 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x1c })
+        EXTRA_MODE_REGS( 10, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x38 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x18 })
+        EXTRA_MODE_REGS( 11, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x30 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x14 })
 
-        BINNING_START(ctrl->binnings[0], 0, 0)
-                { IMX56X_HV_MODE, IMX56X_BINNING_MODE_DISABLE },
-                { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
-        BINNING_END(ctrl->binnings[0])
-
-        BINNING_START(ctrl->binnings[1], 2, 2)
-                { IMX56X_HV_MODE, IMX56X_BINNING_MODE_ENABLE },
-                { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
-        BINNING_END(ctrl->binnings[1])
+        BINNING_FACTORS(1, 2, 2)
 
         ctrl->max_binning_modes_used = 1;
 
@@ -896,23 +906,22 @@ static void vc_init_ctrl_imx567(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE( 10,     4, FORMAT_RAW10,       1,   232, 0xffff,   232,   68, 0xffffff,  0x4a8,     1,    144,     0,  1023,   60,    194346)
         MODE( 11,     4, FORMAT_RAW12,       1,   271, 0xffff,   271,   60, 0xffffff,  0x498,     1,    132,     0,  4095,  240,    224640)
 
+        EXTRA_MODE_REGS(  0, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  1, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  2, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  3, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  4, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  5, IMX56X_BINNING_OFF)
+
         // Special timing registers for binning modes
-        EXTRA_MODE_REGS(  6, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x2c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x14 })
-        EXTRA_MODE_REGS(  7, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x24 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 })
-        EXTRA_MODE_REGS(  8, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x20 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 })
-        EXTRA_MODE_REGS(  9, { IMX56X_GMRWT, 0x0c }, { IMX56X_GMTWT, 0x4c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x20 })
-        EXTRA_MODE_REGS( 10, { IMX56X_GMRWT, 0x0c }, { IMX56X_GMTWT, 0x40 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x1c })
-        EXTRA_MODE_REGS( 11, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x38 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x18 })
+        EXTRA_MODE_REGS(  6, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x2c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x14 })
+        EXTRA_MODE_REGS(  7, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x24 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 })
+        EXTRA_MODE_REGS(  8, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x20 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 })
+        EXTRA_MODE_REGS(  9, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x0c }, { IMX56X_GMTWT, 0x4c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x20 })
+        EXTRA_MODE_REGS( 10, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x0c }, { IMX56X_GMTWT, 0x40 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x1c })
+        EXTRA_MODE_REGS( 11, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x38 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x18 })
 
-        BINNING_START(ctrl->binnings[0], 0, 0)
-                { IMX56X_HV_MODE, IMX56X_BINNING_MODE_DISABLE },
-                { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
-        BINNING_END(ctrl->binnings[0])
-
-        BINNING_START(ctrl->binnings[1], 2, 2)
-                { IMX56X_HV_MODE, IMX56X_BINNING_MODE_ENABLE },
-                { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
-        BINNING_END(ctrl->binnings[1])
+        BINNING_FACTORS(1, 2, 2)
 
         ctrl->max_binning_modes_used = 1;
 
@@ -966,23 +975,22 @@ static void vc_init_ctrl_imx568(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE( 10,     4, FORMAT_RAW10,       1,   232, 0xffff,   232,   68, 0xffffff,  0x4a8,     1,    160,     0,  1023,   60,    194346)
         MODE( 11,     4, FORMAT_RAW12,       1,   271, 0xffff,   271,   60, 0xffffff,  0x498,     1,    144,     0,  4095,  240,    224640)
 
+        EXTRA_MODE_REGS(  0, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  1, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  2, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  3, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  4, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  5, IMX56X_BINNING_OFF)
+
         // Special timing registers for binning modes
-        EXTRA_MODE_REGS(  6, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x2c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x14 })
-        EXTRA_MODE_REGS(  7, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x24 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 })
-        EXTRA_MODE_REGS(  8, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x20 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 })
-        EXTRA_MODE_REGS(  9, { IMX56X_GMRWT, 0x0c }, { IMX56X_GMTWT, 0x4c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x20 })
-        EXTRA_MODE_REGS( 10, { IMX56X_GMRWT, 0x0c }, { IMX56X_GMTWT, 0x40 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x1c })
-        EXTRA_MODE_REGS( 11, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x38 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x18 })
+        EXTRA_MODE_REGS(  6, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x2c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x14 })
+        EXTRA_MODE_REGS(  7, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x24 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 })
+        EXTRA_MODE_REGS(  8, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x04 }, { IMX56X_GMTWT, 0x20 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x10 })
+        EXTRA_MODE_REGS(  9, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x0c }, { IMX56X_GMTWT, 0x4c }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x20 })
+        EXTRA_MODE_REGS( 10, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x0c }, { IMX56X_GMTWT, 0x40 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x1c })
+        EXTRA_MODE_REGS( 11, IMX56X_BINNING_2X2, { IMX56X_GMRWT, 0x08 }, { IMX56X_GMTWT, 0x38 }, { IMX56X_GAINDLY, 0x04 }, { IMX56X_GSDLY, 0x18 })
 
-        BINNING_START(ctrl->binnings[0], 0, 0)
-                { IMX56X_HV_MODE, IMX56X_BINNING_MODE_DISABLE },
-                { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
-        BINNING_END(ctrl->binnings[0])
-
-        BINNING_START(ctrl->binnings[1], 2, 2)
-                { IMX56X_HV_MODE, IMX56X_BINNING_MODE_ENABLE },
-                { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
-        BINNING_END(ctrl->binnings[1])
+        BINNING_FACTORS(1, 2, 2)
 
         ctrl->max_binning_modes_used = 1;
 
@@ -1068,10 +1076,12 @@ static void vc_init_ctrl_imx900(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL | FLAG_TRIGGER_PULSEWIDTH |
                                           FLAG_TRIGGER_SELF | FLAG_TRIGGER_SINGLE;
 
-        BINNING_START(ctrl->binnings[0], 0, 0)
-                { IMX56X_HV_MODE, IMX56X_BINNING_MODE_DISABLE },
-                { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE }
-        BINNING_END(ctrl->binnings[0])
+        EXTRA_MODE_REGS(  0, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  1, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  2, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  3, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  4, IMX56X_BINNING_OFF)
+        EXTRA_MODE_REGS(  5, IMX56X_BINNING_OFF)
 }
 
 // ------------------------------------------------------------------------------------------------

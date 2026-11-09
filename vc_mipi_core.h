@@ -215,6 +215,11 @@ typedef struct vc_mode {
         __u32      vmax_row_margin;
         __u32      vmax_row_floor;
         __u32      vmax_row_scale;
+        // Binning scale factors in x (horizontal) and y (vertical) direction.
+        // The output image is h_scale x v_scale smaller than the read out
+        // sensor area. 1 (or 0) means no binning.
+        __u8       h_scale;
+        __u8       v_scale;
         // Extra sensor registers written whenever this mode is selected, after
         // the ROI has been set (see vc_sen_write_extra_mode_regs() in
         // vc_mipi_core.c), e.g. AR2020's eDR-mode CSI2 data type tag or the
@@ -233,22 +238,6 @@ typedef struct vc_mode {
         // frame, never converging) during this mode's use as the low-res
         // viewfinder stage.
 } vc_mode;
-
-typedef struct vc_binning {
-        bool use_mod_mode;
-        __u8 h_factor;
-        __u8 v_factor;
-        struct vc_reg regs[8];
-} vc_binning;
-
-
-#define BINNING_START(binning, h, v) \
-        binning = (vc_binning) { .use_mod_mode = false, .h_factor = h, .v_factor = v }; \
-        { const struct vc_reg regs [] = {
-#define BINNING_END(binning) \
-        , {0, 0} }; memcpy(&binning.regs, regs, sizeof(regs)); }
-#define BINNING(binning, h, v) \
-        binning = (vc_binning) { .use_mod_mode = true, .h_factor = h, .v_factor = v }; 
 
 typedef struct dt_binning_mode {
         __u32 binning_mode;
@@ -324,7 +313,6 @@ struct vc_ctrl {
         struct vc_control framerate;
         // Modes & Frame Formats
         struct vc_frame frame;          // Pixel
-        struct vc_binning binnings[8];
         struct vc_tout tout;
 
         __u8 max_binning_modes_used;
@@ -399,7 +387,7 @@ int vc_core_set_format(struct vc_cam *cam, __u32 code);
 __u32 vc_core_get_format(struct vc_cam *cam);
 int vc_core_set_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __u32 height);
 struct vc_frame *vc_core_get_frame(struct vc_cam *cam);
-struct vc_binning *vc_core_get_binning(struct vc_cam *cam);
+void vc_core_get_binning_scale(struct vc_cam *cam, __u8 *h_scale, __u8 *v_scale);
 int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number);
 __u32 vc_core_get_num_lanes(struct vc_cam *cam);
 int vc_core_set_framerate(struct vc_cam *cam, __u32 framerate);

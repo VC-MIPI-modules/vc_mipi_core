@@ -74,7 +74,7 @@ static __u32 vc_core_calculate_period_1H(struct vc_cam *cam, __u8 num_lanes, __u
 void vc_core_calculate_roi(struct vc_cam *cam, __u32 *w_left, __u32 *w_right, __u32 *w_width,
         __u32 *w_top, __u32 *w_bottom, __u32 *w_height, __u32 *o_width, __u32 *o_height);
 static int vc_sen_read_image_size(struct vc_ctrl *ctrl, struct vc_frame *size);
-struct vc_binning *vc_core_get_binning(struct vc_cam *cam);
+void vc_core_get_binning_scale(struct vc_cam *cam, __u8 *h_scale, __u8 *v_scale);
 int i2c_write_regs(struct i2c_client *client, const struct vc_reg *regs, const char* func);
 vc_mode vc_core_get_mode_by_param(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
 __u32 vc_core_get_hmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
@@ -1062,19 +1062,18 @@ __u32 vc_core_get_optimized_vmax(struct vc_cam *cam, __u8 num_lanes,  __u8 forma
         struct device *dev = &ctrl->client_sen->dev;
         vc_mode mode = vc_core_get_mode_by_param(cam, num_lanes, format, binning_mode);
         __u32 vmax_def = mode.vmax.def;
-        struct vc_binning *binning = vc_core_get_binning(cam);
         __u32 vmax_res = vmax_def;
 
         if (0 == vmax_def) {
                 return 0;
         }
 
-        if (binning->v_factor > 0) {
-                height *= binning->v_factor;
+        if (mode.v_scale > 0) {
+                height *= mode.v_scale;
         }
 
-        vc_dbg(dev, "%s(): vmax_def: %u, v_factor: %u, height: %u/%u\n", __FUNCTION__,
-                vmax_def, binning->v_factor, height, ctrl->frame.height);
+        vc_dbg(dev, "%s(): vmax_def: %u, v_scale: %u, height: %u/%u\n", __FUNCTION__,
+                vmax_def, mode.v_scale, height, ctrl->frame.height);
 
         // Increase the frame rate when image height is reduced.
         if (ctrl->flags & FLAG_INCREASE_FRAME_RATE && height < ctrl->frame.height) {
@@ -1861,19 +1860,24 @@ static int vc_sen_read_image_size(struct vc_ctrl *ctrl, struct vc_frame *size)
         return 0;
 }
 
-struct vc_binning *vc_core_get_binning(struct vc_cam *cam)
+// Binning scale factors of the current mode. Returns 1 x 1 if no binning is
+// active or no mode matches the current state.
+void vc_core_get_binning_scale(struct vc_cam *cam, __u8 *h_scale, __u8 *v_scale)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
-        struct i2c_client *client = ctrl->client_sen;
-        struct device *dev = &client->dev;
+        __u8 format = vc_core_mbus_code_to_format(state->format_code);
+        __u8 binning = (ctrl->flags & FLAG_USE_BINNING_INDEX) ? state->binning_mode : 0;
+        int index = vc_core_get_mode_index(cam, state->num_lanes, format, binning);
 
-        if (state->binning_mode >= ARRAY_SIZE(ctrl->binnings)) {
-                vc_err(dev, "%s(): Invalid binning mode! \n", __FUNCTION__);
-                return NULL;
-        }
-
-        return &ctrl->binnings[state->binning_mode];
+        *h_scale = 1;
+        *v_scale = 1;
+        if (index < 0)
+                return;
+        if (ctrl->mode[index].h_scale > 0)
+                *h_scale = ctrl->mode[index].h_scale;
+        if (ctrl->mode[index].v_scale > 0)
+                *v_scale = ctrl->mode[index].v_scale;
 }
 
 void vc_core_calculate_roi(struct vc_cam *cam, __u32 *left, __u32 *right, __u32 *width,
@@ -1881,39 +1885,26 @@ void vc_core_calculate_roi(struct vc_cam *cam, __u32 *left, __u32 *right, __u32 
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
-        struct i2c_client *client = ctrl->client_sen;
-        struct device *dev = &client->dev;
-        struct vc_binning *binning = vc_core_get_binning(cam);
+        __u8 h_scale, v_scale;
 #ifdef ENABLE_ADVANCED_CONTROL
         __u32 frame_height = state->frame.height + state->height_offset;
 #else
         __u32 frame_height = state->frame.height;
 #endif
 
-        if (NULL == binning) {
-                vc_err(dev, "%s() Could not get binning struct!\n", __FUNCTION__);
-                return;
-        }
+        vc_core_get_binning_scale(cam, &h_scale, &v_scale);
 
         *left = ctrl->frame.left + state->frame.left;
         *top = ctrl->frame.top + state->frame.top;
-        if ((binning->h_factor == 0) || (binning->v_factor == 0)) {
-                *width = state->frame.width;
-                *height = frame_height;
-
-        } else {
-                *width = state->frame.width * binning->h_factor;
-                *height = frame_height * binning->v_factor;
-        }
+        *width = state->frame.width * h_scale;
+        *height = frame_height * v_scale;
 
         *o_width = state->frame.width;
         *o_height = frame_height;
 
         if (ctrl->flags & FLAG_DOUBLE_HEIGHT) {
-                if (!((binning->h_factor == 0) || (binning->v_factor == 0))) {
-                        *o_width *= binning->h_factor;
-                        *o_height *= binning->v_factor;
-                }
+                *o_width *= h_scale;
+                *o_height *= v_scale;
                 *top *= 2;
                 *height *= 2;
                 *o_height *= 2;
@@ -2012,7 +2003,7 @@ int vc_sen_set_roi(struct vc_cam *cam)
 
         struct i2c_client *client = ctrl->client_sen;
         struct device *dev = &client->dev;
-        struct vc_binning *binning = vc_core_get_binning(cam);
+        __u8 h_scale, v_scale;
         int w_left, w_top, w_right, w_bottom, w_width, w_height, o_width, o_height;
         int ret = 0;
         vc_csr2 vc2OP_BLK_HWIDTH = (vc_csr2) { .l = 0x30d0, .m = 0x30d1 };
@@ -2021,15 +2012,8 @@ int vc_sen_set_roi(struct vc_cam *cam)
         vc_csr2 DIG_CROP_IMAGE_WIDTH  = (vc_csr2) { .l = 0x040d, .m = 0x040c };
         vc_csr2 DIG_CROP_IMAGE_HEIGHT = (vc_csr2) { .l = 0x040f, .m = 0x040e };
 
-        if (NULL == binning) {
-                vc_err(dev, "%s() Could not get binning struct!\n", __FUNCTION__);
-                return -EINVAL;
-        }
-
-        vc_dbg(dev, "%s() h_factor: %d, v_factor: %d \n", __FUNCTION__,
-                binning->h_factor, binning->v_factor);
-
-        i2c_write_regs(client, binning->regs, __FUNCTION__);
+        vc_core_get_binning_scale(cam, &h_scale, &v_scale);
+        vc_dbg(dev, "%s() h_scale: %d, v_scale: %d \n", __FUNCTION__, h_scale, v_scale);
 
         vc_core_calculate_roi(cam, &w_left, &w_right, &w_width, &w_top, &w_bottom, &w_height, &o_width, &o_height);
 
