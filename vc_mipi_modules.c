@@ -52,6 +52,17 @@
                 .h_scale = _h_scale, \
                 .v_scale = _v_scale };
 
+// Virtual mode: A mode that is not defined in the module (FPGA) mode table.
+// base is the index of an existing (real) mode with the same number of lanes.
+// When the virtual mode is selected, the module is set to the mode of base and
+// the extra registers of base and then of the virtual mode are written, so
+// EXTRA_MODE_REGS() of the virtual mode overwrite or extend the base mode.
+// All other parameters are the same as for MODE().
+#define VIRT_MODE(index, _base, ...) \
+        MODE(index, __VA_ARGS__) \
+        ctrl->mode[index].virt = true; \
+        ctrl->mode[index].base = _base;
+
 // Extra sensor registers, written whenever this mode is selected
 // (see vc_mode.extra_regs / vc_sen_write_extra_mode_regs()).
 #define EXTRA_MODE_REGS(_mode, ...) \

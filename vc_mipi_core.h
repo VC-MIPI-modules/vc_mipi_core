@@ -220,6 +220,12 @@ typedef struct vc_mode {
         // sensor area. 1 (or 0) means no binning.
         __u8       h_scale;
         __u8       v_scale;
+        // Virtual mode: Not defined in the module (FPGA) mode table. The
+        // module is set to the mode of the real mode base (index into
+        // ctrl->mode[]), then the extra registers of base and of this mode are
+        // written, so this mode overwrites or extends the base settings.
+        bool       virt;
+        __u8       base;
         // Extra sensor registers written whenever this mode is selected, after
         // the ROI has been set (see vc_sen_write_extra_mode_regs() in
         // vc_mipi_core.c), e.g. AR2020's eDR-mode CSI2 data type tag or the
@@ -350,7 +356,7 @@ struct vc_state {
         __u8 io_mode;
         __u8 trigger_mode;
         __u8 binning_mode;
-        __u8 former_binning_mode;
+        __u8 ctrl_mode;                 // Index of the active ctrl->mode[] (0xff: none)
         int power_on;
         int streaming;
         __u8 flags;
@@ -380,6 +386,7 @@ struct i2c_client *vc_mod_get_client(struct device *dev, struct i2c_adapter *ada
 void vc_core_print_debug(struct vc_cam *cam);                                   // Only used by NVIDIA driver
 struct device *vc_core_get_sen_device(struct vc_cam *cam);
 vc_mode vc_core_get_mode(struct vc_cam *cam);
+int vc_core_get_current_mode_index(struct vc_cam *cam);
 void vc_core_update_mbus_codes(struct vc_cam *cam);
 int vc_core_try_format(struct vc_cam *cam, __u32 code);
 __u32 vc_core_get_optimized_vmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning_mode, __u32 height);

@@ -86,6 +86,7 @@ int vc_mod_set_power(struct vc_cam *cam, int on);
 int vc_mod_is_trigger_enabled(struct vc_cam *cam);
 int vc_mod_get_io_mode(struct vc_cam *cam);
 int vc_core_get_mode_index(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
+int vc_core_get_current_mode_index(struct vc_cam *cam);
 int vc_sen_write_extra_mode_regs(struct vc_cam *cam);
 int vc_sen_write_mode(struct vc_ctrl *ctrl, int mode);
 int vc_sen_set_hmax(struct vc_cam *cam);
@@ -391,14 +392,14 @@ static void vc_core_print_mode(struct vc_cam *cam)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct device *dev = vc_core_get_mod_device(cam);
-        char sformat[16];
+        char sformat[16], sbase[8];
         int index = 0;
 
         if (ctrl->flags & FLAG_INCREASE_FRAME_RATE) {
-                vc_notice(dev, "+-------+--------+---------+------------+-----------+\n");
-                vc_notice(dev, "| lanes | format | binning | exposure   | framerate |\n");
-                vc_notice(dev, "|       |        | mode    | max [us]   | max [mHz] |\n");
-                vc_notice(dev, "+-------+--------+---------+------------+-----------+\n");
+                vc_notice(dev, "+----+-------+--------+---------+------+------------+-----------+\n");
+                vc_notice(dev, "|  # | lanes | format | binning | virt | exposure   | framerate |\n");
+                vc_notice(dev, "|    |       |        | mode    | base | max [us]   | max [mHz] |\n");
+                vc_notice(dev, "+----+-------+--------+---------+------+------------+-----------+\n");
                 while (index < MAX_VC_MODES && ctrl->mode[index].num_lanes != 0) {
                         __u8 num_lanes = ctrl->mode[index].num_lanes;
                         __u8 format = ctrl->mode[index].format;
@@ -408,11 +409,75 @@ static void vc_core_print_mode(struct vc_cam *cam)
                         __u32 max_frame_rate = vc_core_calculate_max_frame_rate(cam, num_lanes, format, binning, height);
 
                         vc_core_print_format(format, sformat);
-                        vc_notice(dev, "|     %1d | %s  |       %1d | %10d | %9d |\n",
-                                num_lanes, sformat, binning, max_exposure, max_frame_rate);
+                        if (ctrl->mode[index].virt)
+                                sprintf(sbase, "%4u", ctrl->mode[index].base);
+                        else
+                                strcpy(sbase, "   -");
+                        vc_notice(dev, "| %2d |     %1d | %s  |       %1d | %s | %10d | %9d |\n",
+                                index, num_lanes, sformat, binning, sbase, max_exposure, max_frame_rate);
                         index++;
                 }
-                vc_notice(dev, "+-------+--------+---------+------------+-----------+\n");
+                vc_notice(dev, "+----+-------+--------+---------+------+------------+-----------+\n");
+        }
+}
+
+static bool vc_core_desc_has_mode(struct vc_desc *desc, __u8 num_lanes, __u8 format, __u8 binning)
+{
+        int index;
+
+        for (index = 0; index < desc->num_modes; index++) {
+                struct vc_desc_mode *mode = &desc->modes[index];
+                if (mode->num_lanes == num_lanes && mode->format == format && mode->binning == binning)
+                        return true;
+        }
+        return false;
+}
+
+// Checks the mode definitions against the module (FPGA) mode table: Real
+// modes have to be defined in the module, virtual modes need a real base mode
+// with the same number of lanes. Each lanes, format and binning combination
+// may only be defined once.
+static void vc_core_check_modes(struct vc_cam *cam)
+{
+        struct vc_ctrl *ctrl = &cam->ctrl;
+        struct vc_desc *desc = &cam->desc;
+        struct device *dev = vc_core_get_mod_device(cam);
+        char sformat[16];
+        int index;
+
+        for (index = 0; index < MAX_VC_MODES; index++) {
+                struct vc_mode *mode = &ctrl->mode[index];
+                struct vc_mode *base;
+
+                if (mode->num_lanes == 0)
+                        continue;
+
+                vc_core_print_format(mode->format, sformat);
+                // Modes are selected by lanes, format and binning mode
+                if (vc_core_get_mode_index(cam, mode->num_lanes, mode->format, mode->binning) != index)
+                        vc_err(dev, "%s(): Mode %d (lanes: %u, format: %s, binning: %u) is defined twice, "
+                                "it can not be selected!\n", __FUNCTION__,
+                                index, mode->num_lanes, sformat, mode->binning);
+                if (!mode->virt) {
+                        if (!vc_core_desc_has_mode(desc, mode->num_lanes, mode->format, mode->binning))
+                                vc_warn(dev, "%s(): Mode %d (lanes: %u, format: %s, binning: %u) is not defined "
+                                        "in the module, it should be a VIRT_MODE()\n", __FUNCTION__,
+                                        index, mode->num_lanes, sformat, mode->binning);
+                        continue;
+                }
+
+                base = (mode->base < MAX_VC_MODES) ? &ctrl->mode[mode->base] : NULL;
+                if (base == NULL || base->num_lanes == 0 || base->virt) {
+                        vc_err(dev, "%s(): Virtual mode %d has no valid base mode (%u)!\n", __FUNCTION__,
+                                index, mode->base);
+                        continue;
+                }
+                if (base->num_lanes != mode->num_lanes)
+                        vc_warn(dev, "%s(): Virtual mode %d uses %u lanes, but its base mode %u uses %u lanes\n",
+                                __FUNCTION__, index, mode->num_lanes, mode->base, base->num_lanes);
+                if (!vc_core_desc_has_mode(desc, base->num_lanes, base->format, base->binning))
+                        vc_warn(dev, "%s(): Base mode %u of virtual mode %d is not defined in the module\n",
+                                __FUNCTION__, mode->base, index);
         }
 }
 
@@ -765,9 +830,20 @@ void vc_core_update_mbus_codes(struct vc_cam *cam)
         enum vc_cfa_pattern cfa = vc_core_get_cfa_pattern(ctrl);
         int modeIx, codeIx;
 
-        for (modeIx = 0; modeIx < desc->num_modes; modeIx++) {
-                struct vc_desc_mode *mode = &desc->modes[modeIx];
-                __u32 code = vc_core_format_to_mbus_code(mode->format, is_color, cfa);
+        // Formats of the module modes and of the virtual modes
+        for (modeIx = 0; modeIx < desc->num_modes + MAX_VC_MODES; modeIx++) {
+                __u8 format;
+                __u32 code;
+
+                if (modeIx < desc->num_modes) {
+                        format = desc->modes[modeIx].format;
+                } else {
+                        struct vc_mode *mode = &ctrl->mode[modeIx - desc->num_modes];
+                        if (mode->num_lanes == 0 || !mode->virt)
+                                continue;
+                        format = mode->format;
+                }
+                code = vc_core_format_to_mbus_code(format, is_color, cfa);
                 vc_dbg(dev, "%s(): Checking mode %u (code: 0x%04x)\n", __FUNCTION__, modeIx, code);
 
                 for (codeIx = 0; codeIx < ARRAY_SIZE(ctrl->mbus_codes); codeIx++) {
@@ -800,6 +876,12 @@ int vc_core_try_format(struct vc_cam *cam, __u32 code)
                 struct vc_desc_mode *mode = &desc->modes[index];
                 vc_dbg(dev, "%s(): Checking mode %u (format: 0x%02x)", __FUNCTION__, index, mode->format);
                 if(mode->format == format) {
+                        return 0;
+                }
+        }
+        for (index = 0; index < MAX_VC_MODES; index++) {
+                struct vc_mode *mode = &cam->ctrl.mode[index];
+                if (mode->num_lanes != 0 && mode->virt && mode->format == format) {
                         return 0;
                 }
         }
@@ -966,9 +1048,16 @@ int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number)
         struct device *dev = vc_core_get_sen_device(cam);
         __u8 index = 0;
 
-        for (index = 0; index < desc->num_modes; index++) {
-                struct vc_desc_mode *mode = &desc->modes[index];
-                if (mode->num_lanes == number) {
+        for (index = 0; index < desc->num_modes + MAX_VC_MODES; index++) {
+                __u8 num_lanes;
+
+                if (index < desc->num_modes) {
+                        num_lanes = desc->modes[index].num_lanes;
+                } else {
+                        struct vc_mode *mode = &cam->ctrl.mode[index - desc->num_modes];
+                        num_lanes = mode->virt ? mode->num_lanes : 0;
+                }
+                if (num_lanes != 0 && num_lanes == number) {
                         vc_notice(dev, "%s(): Set number of lanes: %u\n", __FUNCTION__, number);
                         state->num_lanes = number;
                         vc_core_update_controls(cam);
@@ -1371,6 +1460,7 @@ static void vc_core_state_init(struct vc_cam *cam)
         __u8 binning = state->binning_mode;
 
         state->mode = 0xff;
+        state->ctrl_mode = 0xff;
         state->exposure = ctrl->exposure.def;
         state->gain = 0;
         state->shs = 0;
@@ -1426,6 +1516,7 @@ int vc_core_init(struct vc_cam *cam, struct i2c_client *client)
         vc_core_state_init(cam);
         vc_core_update_controls(cam);
         vc_core_update_mbus_codes(cam);
+        vc_core_check_modes(cam);
         vc_core_print_mode(cam);
 
         vc_notice(&ctrl->client_mod->dev, "VC MIPI Core successfully initialized\n");
@@ -1599,17 +1690,36 @@ static __u8 vc_mod_get_mode_type(struct vc_cam *cam, char **stype)
         }
 }
 
+// Parameters of the module (ROM) mode for the current state. For a virtual mode
+// these are the parameters of its base mode.
+static void vc_mod_get_mode_params(struct vc_cam *cam, __u8 *num_lanes, __u8 *format, __u8 *binning)
+{
+        struct vc_ctrl *ctrl = &cam->ctrl;
+        struct vc_state *state = &cam->state;
+        int index = vc_core_get_current_mode_index(cam);
+
+        *num_lanes = state->num_lanes;
+        *format = vc_core_mbus_code_to_format(state->format_code);
+        *binning = (ctrl->flags & FLAG_USE_BINNING_INDEX) ? state->binning_mode : 0;
+
+        if (index >= 0 && ctrl->mode[index].virt && ctrl->mode[index].base < MAX_VC_MODES) {
+                struct vc_mode *base = &ctrl->mode[ctrl->mode[index].base];
+                *num_lanes = base->num_lanes;
+                *format = base->format;
+                *binning = base->binning;
+        }
+}
+
 // Module (ROM) mode that vc_mod_set_mode() will select for the current format, lanes,
 // trigger and binning. Unlike state->mode it is valid before the stream is started.
 __u8 vc_mod_get_mode(struct vc_cam *cam)
 {
-        struct vc_state *state = &cam->state;
         char *stype;
         __u8 type = vc_mod_get_mode_type(cam, &stype);
-        __u8 binning = (cam->ctrl.flags & FLAG_USE_BINNING_INDEX) ? state->binning_mode : 0;
+        __u8 num_lanes, format, binning;
 
-        return vc_mod_find_mode(cam, state->num_lanes, vc_core_mbus_code_to_format(state->format_code),
-                type, binning);
+        vc_mod_get_mode_params(cam, &num_lanes, &format, &binning);
+        return vc_mod_find_mode(cam, num_lanes, format, type, binning);
 }
 
 int vc_mod_set_mode(struct vc_cam *cam, int *reset)
@@ -1618,40 +1728,41 @@ int vc_mod_set_mode(struct vc_cam *cam, int *reset)
         struct vc_state *state = &cam->state;
         struct device *dev = vc_core_get_mod_device(cam);
         __u8 num_lanes = state->num_lanes;
-        __u8 format = vc_core_mbus_code_to_format(state->format_code);
+        __u8 mod_num_lanes, mod_format, mod_binning;
         char fourcc[14];
         char *stype;
         __u8 type = 0;
         __u8 mode = 0;
         int ret = 0;
-        bool reset_binning = false;
-        __u8 binning_mode = 0;
+        int ctrl_mode = vc_core_get_current_mode_index(cam);
+        bool ctrl_mode_changed = false;
 
         type = vc_mod_get_mode_type(cam, &stype);
-        binning_mode = (ctrl->flags & FLAG_USE_BINNING_INDEX) ? state->binning_mode : 0;
 
-        if (( 0 < state->former_binning_mode ) && ( 0 == state->binning_mode) ) {
-                reset_binning = true;
-                        }
-        else {
-                reset_binning = false;
+        // Several modes (virtual modes and their base, binning modes) can use the
+        // same module mode. Their extra registers are not reset by the following
+        // mode, so the module is reset whenever the selected mode changes.
+        if ((__u8)ctrl_mode != state->ctrl_mode) {
+                ctrl_mode_changed = (state->ctrl_mode != 0xff);
         }
-        state->former_binning_mode = state->binning_mode;
+        state->ctrl_mode = (__u8)ctrl_mode;
 
-        mode = vc_mod_find_mode(cam, num_lanes, format, type, binning_mode);
+        vc_mod_get_mode_params(cam, &mod_num_lanes, &mod_format, &mod_binning);
+        mode = vc_mod_find_mode(cam, mod_num_lanes, mod_format, type, mod_binning);
         if (mode == state->mode && vc_mod_lost_initialization(cam)) {
                 vc_notice(dev, "%s(): Module lost initialization\n", __FUNCTION__);
                 state->mode = 0xff;
         }
-        if ( (mode == state->mode) && (!(ctrl->flags & FLAG_RESET_ALWAYS) && (type == MODE_TYPE_STREAM) && !reset_binning)) {
+        if ( (mode == state->mode) && (!(ctrl->flags & FLAG_RESET_ALWAYS) && (type == MODE_TYPE_STREAM) && !ctrl_mode_changed)) {
                 vc_dbg(dev, "%s(): Module mode %u need not to be set!\n", __FUNCTION__, mode);
                 *reset = 0;
                 return 0;
         }
 
         vc_core_fmt_to_str(state->format_code, fourcc);
-        vc_notice(dev, "%s(): Set module mode: %u (lanes: %u, format: %s, type: %s)\n", __FUNCTION__,
-                mode, num_lanes, fourcc, stype);
+        vc_notice(dev, "%s(): Set module mode: %u (lanes: %u, format: %s, type: %s, mode: %d%s)\n", __FUNCTION__,
+                mode, num_lanes, fourcc, stype, ctrl_mode,
+                (ctrl_mode >= 0 && ctrl->mode[ctrl_mode].virt) ? " virtual" : "");
 
         ret = vc_mod_reset_module(cam, mode);
         if (ret) {
@@ -1865,10 +1976,7 @@ static int vc_sen_read_image_size(struct vc_ctrl *ctrl, struct vc_frame *size)
 void vc_core_get_binning_scale(struct vc_cam *cam, __u8 *h_scale, __u8 *v_scale)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
-        struct vc_state *state = &cam->state;
-        __u8 format = vc_core_mbus_code_to_format(state->format_code);
-        __u8 binning = (ctrl->flags & FLAG_USE_BINNING_INDEX) ? state->binning_mode : 0;
-        int index = vc_core_get_mode_index(cam, state->num_lanes, format, binning);
+        int index = vc_core_get_current_mode_index(cam);
 
         *h_scale = 1;
         *v_scale = 1;
@@ -1930,29 +2038,52 @@ int vc_core_get_mode_index(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8
         return -1;
 }
 
-// Writes the extra registers of the current mode (see vc_mode.extra_regs in
-// vc_mipi_core.h). Applied whenever the mode is selected, independent of
-// the binning mode.
-int vc_sen_write_extra_mode_regs(struct vc_cam *cam)
+// Index of the ctrl->mode[] matching the current lanes, format and binning
+// mode, -1 if there is none.
+int vc_core_get_current_mode_index(struct vc_cam *cam)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
+        __u8 format = vc_core_mbus_code_to_format(state->format_code);
+        __u8 binning = (ctrl->flags & FLAG_USE_BINNING_INDEX) ? state->binning_mode : 0;
+
+        return vc_core_get_mode_index(cam, state->num_lanes, format, binning);
+}
+
+static int vc_sen_write_mode_regs(struct vc_cam *cam, const struct vc_reg *regs)
+{
+        struct vc_ctrl *ctrl = &cam->ctrl;
         struct device *dev = &ctrl->client_sen->dev;
         struct i2c_client *client = ctrl->client_sen;
-        __u8 format = vc_core_mbus_code_to_format(state->format_code);
-        int mode_index;
-        int iTmp = 0;
+        int i;
         int ret = 0;
 
-        mode_index = vc_core_get_mode_index(cam, state->num_lanes, format, state->binning_mode);
+        for (i = 0; i < MAX_EXTRA_MODE_REGS && regs[i].address > 0; i++) {
+                ret |= i2c_write_reg(dev, client, regs[i].address, regs[i].value, __FUNCTION__);
+        }
+
+        return ret;
+}
+
+// Writes the extra registers of the current mode (see vc_mode.extra_regs in
+// vc_mipi_core.h). Applied whenever the mode is selected, independent of
+// the binning mode. For a virtual mode the extra registers of its base mode
+// are written first, so the virtual mode can overwrite or extend them.
+int vc_sen_write_extra_mode_regs(struct vc_cam *cam)
+{
+        struct vc_ctrl *ctrl = &cam->ctrl;
+        struct vc_mode *mode;
+        int mode_index;
+        int ret = 0;
+
+        mode_index = vc_core_get_current_mode_index(cam);
         if (mode_index < 0)
                 return 0;
 
-        while (ctrl->mode[mode_index].extra_regs[iTmp].address > 0) {
-                ret |= i2c_write_reg(dev, client, ctrl->mode[mode_index].extra_regs[iTmp].address,
-                                     ctrl->mode[mode_index].extra_regs[iTmp].value, __FUNCTION__);
-                iTmp++;
-        }
+        mode = &ctrl->mode[mode_index];
+        if (mode->virt && mode->base < MAX_VC_MODES)
+                ret |= vc_sen_write_mode_regs(cam, ctrl->mode[mode->base].extra_regs);
+        ret |= vc_sen_write_mode_regs(cam, mode->extra_regs);
 
         return ret;
 }
