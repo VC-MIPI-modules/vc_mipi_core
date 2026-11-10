@@ -856,12 +856,12 @@ static void vc_init_ctrl_imx900(struct vc_ctrl *ctrl, struct vc_desc* desc)
         FRAME(0, 0, 2048, 1536)
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
         //                      mode           min       max    def   max   def
-        MODE( 0, 2, FORMAT_RAW08, 0,     460,   99, 0xffffff, 1816,   255,  15,    563060)
-        MODE( 1, 2, FORMAT_RAW10, 0,     564,   99, 0xffffff, 1816,  1023,  60,    688284)
-        MODE( 2, 2, FORMAT_RAW12, 0,     667,   99, 0xffffff, 1816,  4095, 240,    795528)
-        MODE( 3, 4, FORMAT_RAW08, 0,     338,   99, 0xffffff, 1816,   255,  15,    413694)
-        MODE( 4, 4, FORMAT_RAW10, 0,     364,   99, 0xffffff, 1816,  1023,  60,    444204)
-        MODE( 5, 4, FORMAT_RAW12, 0,     610,   99, 0xffffff, 1816,  4095, 240,    727542)
+        MODE( 0, 2, FORMAT_RAW08, 0,     571,   99, 0xffffff, 1794,   255,  15,    563060)
+        MODE( 1, 2, FORMAT_RAW10, 0,     700,   99, 0xffffff, 1794,  1023,  60,    688284)
+        MODE( 2, 2, FORMAT_RAW12, 0,     829,   99, 0xffffff, 1794,  4095, 240,    795528)
+        MODE( 3, 4, FORMAT_RAW08, 0,     338,   99, 0xffffff, 1794,   255,  15,    413694)
+        MODE( 4, 4, FORMAT_RAW10, 0,     378,   99, 0xffffff, 1794,  1023,  60,    444204)
+        MODE( 5, 4, FORMAT_RAW12, 0,     610,   99, 0xffffff, 1794,  4095, 240,    727542)
 }
 
 // ------------------------------------------------------------------------------------------------
