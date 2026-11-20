@@ -230,18 +230,6 @@ typedef struct vc_mode {
         // vc_mipi_core.c), e.g. AR2020's eDR-mode CSI2 data type tag or the
         // IMX56x timing registers for binning modes.
         struct vc_reg extra_regs[MAX_EXTRA_MODE_REGS];
-        // Set true for modes where the sensor's analogue gain register is
-        // silently ignored by hardware (e.g. AR2020's eDR/HDR mode -- its
-        // own datasheet states "Gain for eDR mode is not supported. 0 dB is
-        // always used as the default gain. It is recommended that the user
-        // uses ISP gain in eDR mode"). vc_sen_set_gain() skips writing the
-        // again register for such modes, and vc_mipi_camera.c clamps the
-        // live V4L2_CID_ANALOGUE_GAIN control's range to 0 so libcamera's
-        // AGC doesn't waste its adjustment budget on a control that does
-        // nothing on real hardware -- confirmed this was the root cause of
-        // an AGC runaway (gain climbing unboundedly to its ceiling every
-        // frame, never converging) during this mode's use as the low-res
-        // viewfinder stage.
 } vc_mode;
 
 typedef struct dt_binning_mode {
