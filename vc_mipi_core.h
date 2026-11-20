@@ -225,6 +225,13 @@ typedef struct vc_mode {
         // written, so this mode overwrites or extends the base settings.
         bool       virt;
         __u8       base;
+        // Overwrite (only with virt, -1 = none): Index of the mode this virtual
+        // mode replaces while a module trigger mode (external, pulse width,
+        // self, single) is active. The module is set to the STREAM mode of
+        // base instead of its trigger mode, the extra registers set the sensor
+        // up for triggering (e.g. OV9281: FSIN wake-up without auto sleep).
+        // Not selected by lanes, format and binning (vc_core_get_mode_index()).
+        __s8       overwrite;
         // Extra sensor registers written whenever this mode is selected, after
         // the ROI has been set (see vc_sen_write_extra_mode_regs() in
         // vc_mipi_core.c), e.g. AR2020's eDR-mode CSI2 data type tag or the

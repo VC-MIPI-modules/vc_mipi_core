@@ -84,9 +84,11 @@ static void vc_core_calculate_vmax(struct vc_cam *cam, __u32 period_1H_ns);
 vc_control vc_core_get_blacklevel(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
 int vc_mod_set_power(struct vc_cam *cam, int on);
 int vc_mod_is_trigger_enabled(struct vc_cam *cam);
+static bool vc_mod_is_trigger_type(struct vc_cam *cam);
 int vc_mod_get_io_mode(struct vc_cam *cam);
 int vc_core_get_mode_index(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
 int vc_core_get_current_mode_index(struct vc_cam *cam);
+static int vc_core_get_trigger_mode_index(struct vc_cam *cam, int index);
 int vc_sen_write_extra_mode_regs(struct vc_cam *cam);
 int vc_sen_write_mode(struct vc_ctrl *ctrl, int mode);
 int vc_sen_set_hmax(struct vc_cam *cam);
@@ -436,7 +438,8 @@ static bool vc_core_desc_has_mode(struct vc_desc *desc, __u8 num_lanes, __u8 for
 // Checks the mode definitions against the module (FPGA) mode table: Real
 // modes have to be defined in the module, virtual modes need a real base mode
 // with the same number of lanes. Each lanes, format and binning combination
-// may only be defined once.
+// may only be defined once, except for modes that overwrite another mode with
+// the same combination while triggering (vc_mode.overwrite).
 static void vc_core_check_modes(struct vc_cam *cam)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
@@ -453,8 +456,18 @@ static void vc_core_check_modes(struct vc_cam *cam)
                         continue;
 
                 vc_core_print_format(mode->format, sformat);
+                if (mode->overwrite >= 0) {
+                        // Selected instead of the overwritten mode, i.e. by its lanes, format and binning
+                        struct vc_mode *target = (mode->overwrite < MAX_VC_MODES) ?
+                                &ctrl->mode[mode->overwrite] : NULL;
+                        if (target == NULL || target->num_lanes == 0 || target->overwrite >= 0 ||
+                            target->num_lanes != mode->num_lanes || target->format != mode->format ||
+                            target->binning != mode->binning)
+                                vc_err(dev, "%s(): Mode %d overwrites mode %d, which has to be a selectable "
+                                        "mode with the same lanes, format and binning!\n", __FUNCTION__,
+                                        index, mode->overwrite);
                 // Modes are selected by lanes, format and binning mode
-                if (vc_core_get_mode_index(cam, mode->num_lanes, mode->format, mode->binning) != index)
+                } else if (vc_core_get_mode_index(cam, mode->num_lanes, mode->format, mode->binning) != index)
                         vc_err(dev, "%s(): Mode %d (lanes: %u, format: %s, binning: %u) is defined twice, "
                                 "it can not be selected!\n", __FUNCTION__,
                                 index, mode->num_lanes, sformat, mode->binning);
@@ -681,13 +694,17 @@ vc_mode vc_core_get_mode_by_param(struct vc_cam *cam, __u8 num_lanes, __u8 forma
 
         binning_index = (ctrl->flags & FLAG_USE_BINNING_INDEX) ? binning : 0;
 
-        for (index = 0; index < MAX_VC_MODES; index++) {
-                if ( (num_lanes == ctrl->mode[index].num_lanes)
-                  && (   format == ctrl->mode[index].format) 
-                  && (  binning_index == ctrl->mode[index].binning)) {
-                        memcpy(&tRet, &ctrl->mode[index], sizeof(vc_mode));
-                        return ctrl->mode[index];
-                  }
+        // While a module trigger mode is active, a mode overwriting the selected one replaces it
+        // (same as vc_core_get_current_mode_index()), e.g. OV9281 with other VMAX limits.
+        index = vc_core_get_mode_index(cam, num_lanes, format, binning_index);
+        if (index >= 0) {
+                if (vc_mod_is_trigger_type(cam)) {
+                        int trigger_index = vc_core_get_trigger_mode_index(cam, index);
+                        if (trigger_index >= 0)
+                                index = trigger_index;
+                }
+                memcpy(&tRet, &ctrl->mode[index], sizeof(vc_mode));
+                return tRet;
         }
 
         vc_err(dev, "%s(): Could not get mode values!\n", __FUNCTION__);
@@ -1658,6 +1675,17 @@ static bool vc_mod_lost_initialization(struct vc_cam *cam)
 // Module mode type (stream, slave, trigger) for the current trigger mode.
 static __u8 vc_mod_get_mode_type(struct vc_cam *cam, char **stype)
 {
+        int index;
+
+        // Virtual trigger mode: the module runs the STREAM mode of the base mode
+        if (vc_mod_is_trigger_type(cam)) {
+                index = vc_core_get_current_mode_index(cam);
+                if (index >= 0 && cam->ctrl.mode[index].overwrite >= 0) {
+                        *stype = "STREAM (trigger)";
+                        return MODE_TYPE_STREAM;
+                }
+        }
+
         switch (cam->state.trigger_mode) {
         case REG_TRIGGER_DISABLE:
         case REG_TRIGGER_STREAM_EDGE:
@@ -1771,6 +1799,20 @@ int vc_mod_set_mode(struct vc_cam *cam, int *reset)
 #endif
 
         return ret;
+}
+
+// True for the trigger modes that use a module trigger mode (MODE_TYPE_TRIGGER)
+static bool vc_mod_is_trigger_type(struct vc_cam *cam)
+{
+        switch (cam->state.trigger_mode) {
+        case REG_TRIGGER_EXTERNAL:
+        case REG_TRIGGER_PULSEWIDTH:
+        case REG_TRIGGER_SELF:
+        case REG_TRIGGER_SINGLE:
+                return true;
+        default:
+                return false;
+        }
 }
 
 int vc_mod_is_trigger_enabled(struct vc_cam *cam)
@@ -2019,8 +2061,12 @@ int vc_core_get_mode_index(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8
         struct vc_ctrl *ctrl = &cam->ctrl;
         int index = 0;
         for (index = 0; index < MAX_VC_MODES; index++) {
+                // Modes that overwrite another mode replace it only in
+                // vc_core_get_current_mode_index()
+                if (ctrl->mode[index].overwrite >= 0)
+                        continue;
                 if ( (num_lanes == ctrl->mode[index].num_lanes)
-                  && (   format == ctrl->mode[index].format) 
+                  && (   format == ctrl->mode[index].format)
                   && (  binning == ctrl->mode[index].binning) ) {
                         return index;
                   }
@@ -2029,16 +2075,36 @@ int vc_core_get_mode_index(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8
         return -1;
 }
 
+// Index of the mode overwriting the mode index while triggering, -1 if there is none.
+static int vc_core_get_trigger_mode_index(struct vc_cam *cam, int index)
+{
+        struct vc_ctrl *ctrl = &cam->ctrl;
+        int i;
+
+        for (i = 0; i < MAX_VC_MODES; i++) {
+                if (ctrl->mode[i].num_lanes != 0 && ctrl->mode[i].overwrite == index)
+                        return i;
+        }
+        return -1;
+}
+
 // Index of the ctrl->mode[] matching the current lanes, format and binning
-// mode, -1 if there is none.
+// mode, -1 if there is none. While a module trigger mode is active, this is
+// the mode overwriting the matching mode (vc_mode.overwrite), if there is one.
 int vc_core_get_current_mode_index(struct vc_cam *cam)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
         __u8 format = vc_core_mbus_code_to_format(state->format_code);
         __u8 binning = (ctrl->flags & FLAG_USE_BINNING_INDEX) ? state->binning_mode : 0;
+        int index = vc_core_get_mode_index(cam, state->num_lanes, format, binning);
 
-        return vc_core_get_mode_index(cam, state->num_lanes, format, binning);
+        if (index >= 0 && vc_mod_is_trigger_type(cam)) {
+                int trigger_index = vc_core_get_trigger_mode_index(cam, index);
+                if (trigger_index >= 0)
+                        return trigger_index;
+        }
+        return index;
 }
 
 static int vc_sen_write_mode_regs(struct vc_cam *cam, const struct vc_reg *regs)

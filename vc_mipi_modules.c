@@ -50,20 +50,44 @@
                 .vmax_row_floor = vmax_floor, \
                 .vmax_row_scale = vmax_scale, \
                 .h_scale = _h_scale, \
-                .v_scale = _v_scale };
+                .v_scale = _v_scale, \
+                .overwrite = -1 };
 
 // Virtual mode: A mode that is not defined in the module (FPGA) mode table.
 // base is the index of an existing (real) mode with the same number of lanes.
 // When the virtual mode is selected, the module is set to the mode of base and
 // the extra registers of base and then of the virtual mode are written, so
 // EXTRA_MODE_REGS() of the virtual mode overwrite or extend the base mode.
-// All other parameters are the same as for MODE().
+// All other parameters are the same as for MODE(), followed by an optional
+// overwrite index (see vc_mode.overwrite).
 // E.g. binning modes that enable binning with sensor registers are virtual
 // modes based on the mode without binning (IMX412, IMX56x).
+// overwrite: Index of an existing mode that this virtual mode replaces while a
+// module trigger mode (external, pulse width, self, single) is active. The
+// module is set to the STREAM mode of base instead of its trigger mode and the
+// extra registers of the virtual mode set the sensor up for triggering
+// (OV9281). lanes, format and binning have to be the same as for the
+// overwritten mode, which is selected by them.
 #define VIRT_MODE(index, _base, ...) \
+        _VIRT_MODE_SELECT(__VA_ARGS__, _VIRT_MODE_OVERWRITE, _VIRT_MODE_PLAIN)(index, _base, __VA_ARGS__)
+
+// Picks _VIRT_MODE_OVERWRITE with the overwrite index (18 parameters after
+// base), _VIRT_MODE_PLAIN without it (17 parameters, the ones of MODE()).
+#define _VIRT_MODE_SELECT(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, \
+        _15, _16, _17, _18, name, ...) name
+
+#define _VIRT_MODE_PLAIN(index, _base, ...) \
         MODE(index, __VA_ARGS__) \
         ctrl->mode[index].virt = true; \
         ctrl->mode[index].base = _base;
+
+#define _VIRT_MODE_OVERWRITE(index, _base, lanes, format, binning, _h_scale, _v_scale, \
+        hmax_min, hmax_max, hmax_def, vmax_min, vmax_max, vmax_def, vmax_scale, vmax_margin, \
+        vmax_floor, blacklevel_max, blacklevel_def, _retrigger_min, _overwrite) \
+        _VIRT_MODE_PLAIN(index, _base, lanes, format, binning, _h_scale, _v_scale, \
+                hmax_min, hmax_max, hmax_def, vmax_min, vmax_max, vmax_def, vmax_scale, \
+                vmax_margin, vmax_floor, blacklevel_max, blacklevel_def, _retrigger_min) \
+        ctrl->mode[index].overwrite = _overwrite;
 
 // Extra sensor registers, written whenever this mode is selected
 // (see vc_mode.extra_regs / vc_sen_write_extra_mode_regs()).
@@ -1183,11 +1207,13 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
         //   idx  lanes        format  binning      x      y    min     max    def   min       max     def  scale  margin  floor    max   def        min
         MODE(  0,     2, FORMAT_RAW08,       0,     1,     1,   728, 0xffff,   728,   16,   0xffff,    910,     1,      0,   910,     0,    0,         0)
         MODE(  1,     2, FORMAT_RAW10,       0,     1,     1,   728, 0xffff,   728,   16,   0xffff,    910,     1,      0,   910,     0,    0,         0)
+        //                                      scale  scale   hmax    hmax   hmax  vmax      vmax    vmax   vmax    vmax   vmax   blkl  blkl  retrigger
+        //        idx base lanes        format  binning      x      y    min     max    def   min       max     def  scale  margin  floor    max   def        min  overwrite
+        VIRT_MODE(  2,   0,    2, FORMAT_RAW08,       0,     1,     1,   728, 0xffff,   728,   16,   0xffff,    910,     1,      0,   910,     0,    0,         0,          0)
+        VIRT_MODE(  3,   1,    2, FORMAT_RAW10,       0,     1,     1,   728, 0xffff,   728,   16,   0xffff,    910,     1,      0,   910,     0,    0,         0,          1)
+        EXTRA_MODE_REGS(  2, { 0x303F, 0x01 }, { 0x4F00, 0x00 }, { 0x3030, 0x04 }, { 0x3920, 0x80 })
+        EXTRA_MODE_REGS(  3, { 0x303F, 0x01 }, { 0x4F00, 0x00 }, { 0x3030, 0x04 }, { 0x3920, 0x80 })
 
-        // SYS_CLK = 80 MHz (PLL1, table 2-11 in OV9281 datasheet).
-        // HTS register (0x380C/0x380D) is in SYS_CLK cycles.
-        // CAUTION: old value was 40 MHz / hmax=364 — same period (364/40 = 728/80 = 9.1 µs)
-        //          but writing hmax to the register requires the correct 80 MHz domain.
         ctrl->clk_ext_trigger           = 80000000;
         ctrl->clk_pixel                 = 80000000;
 
