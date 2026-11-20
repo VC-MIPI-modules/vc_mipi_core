@@ -2416,14 +2416,6 @@ int vc_sen_start_stream(struct vc_cam *cam)
                 vc_sen_stop_stream(cam);
         }
 
-        if ((ctrl->flags & FLAG_EXPOSURE_SONY || ctrl->flags & FLAG_EXPOSURE_NORMAL) ||
-            (ctrl->flags & FLAG_EXPOSURE_OMNIVISION && !vc_mod_is_trigger_enabled(cam))) {
-        ret |= vc_sen_write_mode(ctrl, ctrl->csr.sen.mode_operating);
-        if (ret)
-                vc_err(dev, "%s(): Unable to start streaming (error: %d)\n", __FUNCTION__, ret);
-        }
-
-
         if (ctrl->flags & FLAG_TRIGGER_SLAVE && state->trigger_mode == REG_TRIGGER_SYNC) {
                 ret |= vc_mod_write_io_mode(client_mod, REG_IO_XTRIG_ENABLE);
                 ret |= vc_mod_write_trigger_mode(client_mod, REG_TRIGGER_DISABLE);
@@ -2434,7 +2426,6 @@ int vc_sen_start_stream(struct vc_cam *cam)
                 }
 
                 ret |= vc_mod_write_io_mode(client_mod, io_mode);
-                ret |= vc_mod_write_trigger_mode(client_mod, state->trigger_mode);
         }
         if (!ret && reset) {
                 ret |= vc_sen_set_gain(cam, cam->state.gain, true);
@@ -2442,7 +2433,28 @@ int vc_sen_start_stream(struct vc_cam *cam)
         }
         ret |= vc_sen_set_exposure(cam, cam->state.exposure);
 
-        
+        // Start the sensor after gain and exposure are written: Started before, the first frame
+        // is exposed with the values of the module initialisation (OG05B10: SHS 2098 rows instead
+        // of the exposure control), the new values apply from the next frame on.
+        if ((ctrl->flags & FLAG_EXPOSURE_SONY || ctrl->flags & FLAG_EXPOSURE_NORMAL) ||
+            (ctrl->flags & FLAG_EXPOSURE_OMNIVISION && !vc_mod_is_trigger_enabled(cam))) {
+                ret |= vc_sen_write_mode(ctrl, ctrl->csr.sen.mode_operating);
+                if (ret)
+                        vc_err(dev, "%s(): Unable to start streaming (error: %d)\n", __FUNCTION__, ret);
+        }
+
+        // Enable the trigger last: The module triggers the sensor as soon as the trigger mode is
+        // written (self trigger: immediately, single trigger: reg8[3] is the software trigger
+        // itself). Enabled before gain, exposure, VMAX and retrigger are written, the first frame
+        // is captured while these registers change (OG05B10: dark frame without exposure).
+        // Single trigger: Writing REG_TRIGGER_SINGLE fires a trigger, so it is only written by
+        // vc_mod_set_single_trigger() and the trigger stays disabled until then.
+        if (!(ctrl->flags & FLAG_TRIGGER_SLAVE && state->trigger_mode == REG_TRIGGER_SYNC)) {
+                ret |= vc_mod_write_trigger_mode(client_mod,
+                        (state->trigger_mode == REG_TRIGGER_SINGLE) ? REG_TRIGGER_DISABLE : state->trigger_mode);
+        }
+
+
         state->streaming = 1;
 
         return ret;
