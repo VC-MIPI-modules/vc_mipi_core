@@ -1209,8 +1209,8 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE(  1,     2, FORMAT_RAW10,       0,     1,     1,   728, 0xffff,   728,   16,   0xffff,    910,     1,      0,   910,     0,    0,         0)
         //                                      scale  scale   hmax    hmax   hmax  vmax      vmax    vmax   vmax    vmax   vmax   blkl  blkl  retrigger
         //        idx base lanes        format  binning      x      y    min     max    def   min       max     def  scale  margin  floor    max   def        min  overwrite
-        VIRT_MODE(  2,   0,    2, FORMAT_RAW08,       0,     1,     1,   728, 0xffff,   728,   16,   0xffff,    910,     1,      0,   910,     0,    0,         0,          0)
-        VIRT_MODE(  3,   1,    2, FORMAT_RAW10,       0,     1,     1,   728, 0xffff,   728,   16,   0xffff,    910,     1,      0,   910,     0,    0,         0,          1)
+        VIRT_MODE(  2,   0,    2, FORMAT_RAW08,       0,     1,     1,   728, 0xffff,   728,   16,   0xffff,    832,     1,     32,     0,     0,    0,         0,          0)
+        VIRT_MODE(  3,   1,    2, FORMAT_RAW10,       0,     1,     1,   728, 0xffff,   728,   16,   0xffff,    832,     1,     32,     0,     0,    0,         0,          1)
         EXTRA_MODE_REGS(  2, { 0x303F, 0x01 }, { 0x4F00, 0x00 }, { 0x3030, 0x04 }, { 0x3920, 0x80 })
         EXTRA_MODE_REGS(  3, { 0x303F, 0x01 }, { 0x4F00, 0x00 }, { 0x3030, 0x04 }, { 0x3920, 0x80 })
 
