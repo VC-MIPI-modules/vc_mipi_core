@@ -321,6 +321,16 @@ struct vc_ctrl {
         // Cropping and exposure related registers
         __u32 vmax_exposure_margin;
         __u32 crop_top_step;
+        // Trigger snapshot mode (all OmniVision sensors, FLAG_EXPOSURE_OMNIVISION): On the FSIN
+        // edge the sensor wakes up, exposes and sends one frame of VMAX rows, triggers during
+        // this time are ignored. In trigger modes VMAX is therefore not extended to the frame
+        // rate, the frame rate is set by the retrigger period only, which is at least
+        // trigger_wakeup_us + (trigger_wakeup_rows + SHS + VMAX) * row period.
+        // trigger_wakeup_us:   wake up time from the FSIN edge (datasheet: 16388 XVCLK)
+        // trigger_wakeup_rows: rows from the wake up to the integration start (tExp_Dly) plus
+        //                      rows from the integration end to the frame start (tExp_Sof)
+        __u32 trigger_wakeup_us;
+        __u32 trigger_wakeup_rows;
         // Color filter array (Bayer pattern) of color sensors
         enum vc_cfa_pattern cfa;
         // Special features

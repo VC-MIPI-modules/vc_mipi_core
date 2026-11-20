@@ -96,6 +96,9 @@ static void vc_init_ctrl(struct vc_ctrl *ctrl, struct vc_desc* desc)
         // Default: no vertical crop alignment constraint -- see the field
         // comment in vc_mipi_core.h. AR2020 sets 2.
         ctrl->crop_top_step             = 1;
+        // Default: no trigger snapshot mode -- see the field comment in vc_mipi_core.h.
+        ctrl->trigger_wakeup_us         = 0;
+        ctrl->trigger_wakeup_rows       = 0;
 
         ctrl->csr.sen.mode              = (vc_csr2) { .l = desc->csr_mode, .m = 0x0000 };
 
@@ -1196,6 +1199,8 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL;
         ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
         ctrl->vmax_exposure_margin      = 25;
+        ctrl->trigger_wakeup_us         = 700;
+        ctrl->trigger_wakeup_rows       = 11 + 10;
 }
 
 // ------------------------------------------------------------------------------------------------

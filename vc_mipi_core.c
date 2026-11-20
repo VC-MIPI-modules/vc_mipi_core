@@ -2890,9 +2890,21 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
         
         } else if (ctrl->flags & FLAG_EXPOSURE_OMNIVISION) {
                 __u32 duration = (((__u64)exposure_us)*ctrl->flash_factor)/1000000;
+                // Trigger snapshot mode, see trigger_wakeup_us in vc_mipi_core.h
+                bool snapshot = vc_mod_is_trigger_enabled(cam);
                 // OmniVision sensors use exposure registers with low 4 bits as fraction
 
-                vc_calculate_exposure(cam, exposure_us);
+                if (snapshot) {
+                        // VMAX is only the length of the one triggered frame. Extended to the
+                        // frame rate, the sensor would still be busy on the next trigger and
+                        // ignore every second trigger (half the frame rate).
+                        __u32 framerate = state->framerate;
+                        state->framerate = 0;
+                        vc_calculate_exposure(cam, exposure_us);
+                        state->framerate = framerate;
+                } else {
+                        vc_calculate_exposure(cam, exposure_us);
+                }
                 if (state->vmax_overwrite > 0) {
                         // SHS is the exposure itself (OV9281: max exposure is VTS - 25),
                         // so only VMAX follows the overwrite, at least exposure + margin.
@@ -2917,6 +2929,31 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
                         __u8 binning = state->binning_mode;
                         __u32 hmax = vc_core_get_hmax(cam, num_lanes, format, binning);
                         __u32 frametime_us = ((__u64)state->vmax * hmax * 1000000) / ctrl->clk_pixel;
+
+                        if (snapshot) {
+                                // The sensor is busy from the trigger until the end of its frame:
+                                // wake up + exposure (SHS) + frame time (VMAX), in snapshot mode
+                                // the exposure is not part of VMAX (measured with the OG05B10).
+                                // The frame rate only sets the retrigger period, which is never
+                                // shorter than that.
+                                frametime_us += ctrl->trigger_wakeup_us
+                                        + ((__u64)(ctrl->trigger_wakeup_rows + state->shs) * hmax * 1000000)
+                                          / ctrl->clk_pixel;
+                                if (state->trigger_mode == REG_TRIGGER_SELF && state->framerate > 0) {
+                                        __u32 period_us = 1000000000 / state->framerate;
+                                        if (period_us > frametime_us)
+                                                frametime_us = period_us;
+                                }
+                                // The module exposure timer only delays the FSIN edge (the sensor
+                                // exposes with SHS), the trigger period is exposure + retrigger.
+                                // Use a short 1 us FSIN pulse instead of the default 185 us.
+                                state->exposure_cnt = ctrl->clk_ext_trigger / 1000000;
+                                if (!state->streaming) {
+                                        ret |= vc_mod_write_exposure(client_mod, state->exposure_cnt);
+                                }
+                                if (frametime_us > 1)
+                                        frametime_us -= 1;
+                        }
 
                         state->retrigger_cnt = ((__u64)frametime_us * ctrl->clk_ext_trigger) / 1000000;
                         if (!state->streaming || ctrl->flags & FLAG_TRIGGER_SELF_V2) {
