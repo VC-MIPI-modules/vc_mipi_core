@@ -320,6 +320,10 @@ struct vc_ctrl {
         __s32 flash_toffset;
         // Cropping and exposure related registers
         __u32 vmax_exposure_margin;
+        // Vertical crop alignment (rows) of top and height for a colour (Bayer) output. A colour
+        // output always uses an even step to keep the Bayer pattern (at least 2, see
+        // vc_core_get_crop_top_step()), set more only if the sensor needs it. Mono outputs are
+        // not aligned.
         __u32 crop_top_step;
         // Trigger snapshot mode (all OmniVision sensors, FLAG_EXPOSURE_OMNIVISION): On the FSIN
         // edge the sensor wakes up, exposes and sends one frame of VMAX rows, triggers during

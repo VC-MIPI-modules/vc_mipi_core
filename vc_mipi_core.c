@@ -923,12 +923,22 @@ __u32 vc_core_get_format(struct vc_cam *cam)
         return code;
 }
 
+// Vertical crop alignment of top and height in rows: Colour (Bayer) outputs are aligned to an
+// even step (at least 2 rows, the Bayer pattern), mono outputs are not aligned (1).
+static __u32 vc_core_get_crop_top_step(struct vc_cam *cam)
+{
+        int is_color = cam->force_color_mode ? 1 : vc_mod_is_color_sensor(&cam->desc);
+
+        if (!is_color)
+                return 1;
+        return ALIGN(max_t(__u32, cam->ctrl.crop_top_step, 1), 2);
+}
+
 static void vc_core_limit_frame_position(struct vc_cam *cam, __u32 left, __u32 top)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
-        struct vc_desc *desc = &cam->desc;
-        int is_color = cam->force_color_mode ? 1 : vc_mod_is_color_sensor(desc);
+        __u32 step = vc_core_get_crop_top_step(cam);
 
         if (left > ctrl->frame.width - state->frame.width) {
                 state->frame.left = ctrl->frame.width - state->frame.width;
@@ -942,25 +952,17 @@ static void vc_core_limit_frame_position(struct vc_cam *cam, __u32 left, __u32 t
                 state->frame.top = top;
         }
 
-        // Round down to the sensor's required vertical crop alignment, if
-        // any -- see ctrl->crop_top_step in vc_mipi_core.h. Only relevant for
-        // a Bayer/CFA (colour) output, so a mono stream (e.g. IMX568's mono
-        // variant, or any sensor without force_color_mode) is left
-        // unconstrained even though the field is non-zero for its
-        // descriptor. Applied after the bounds clamp above so it can only
-        // move the offset down (towards 0), never back out of the valid
-        // range.
-        if (is_color && ctrl->crop_top_step > 1) {
-                state->frame.top -= state->frame.top % ctrl->crop_top_step;
-        }
+        // Round down to the vertical crop alignment (colour: even rows, see
+        // vc_core_get_crop_top_step()). Applied after the bounds clamp above so it
+        // can only move the offset down (towards 0), never out of the valid range.
+        state->frame.top -= state->frame.top % step;
 }
 
 static void vc_core_limit_frame_size(struct vc_cam *cam, __u32 width, __u32 height)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
-        struct vc_desc *desc = &cam->desc;
-        int is_color = cam->force_color_mode ? 1 : vc_mod_is_color_sensor(desc);
+        __u32 step = vc_core_get_crop_top_step(cam);
 
         if (width > ctrl->frame.width) {
                 state->frame.width = ctrl->frame.width;
@@ -974,15 +976,10 @@ static void vc_core_limit_frame_size(struct vc_cam *cam, __u32 width, __u32 heig
                 state->frame.height = height;
         }
 
-        // Same vertical alignment requirement as crop_top_step, applied here
-        // to the crop height so the last readout row is always a complete
-        // Bayer pair instead of a truncated one. Same is_color gating as
-        // above -- mono streams are unconstrained. Rounds down (after the
-        // max-height clamp above), so this never grows the crop past what
-        // was requested or past ctrl->frame.height.
-        if (is_color && ctrl->crop_top_step > 1) {
-                state->frame.height -= state->frame.height % ctrl->crop_top_step;
-        }
+        // Same vertical alignment for the crop height, so the last row is always a
+        // complete Bayer pair. Rounds down (after the max-height clamp above), so this
+        // never grows the crop past what was requested or past ctrl->frame.height.
+        state->frame.height -= state->frame.height % step;
 }
 
 int vc_core_set_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __u32 height)

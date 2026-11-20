@@ -93,8 +93,8 @@ static void vc_init_ctrl(struct vc_ctrl *ctrl, struct vc_desc* desc)
         // Default: no margin (SHS == VMAX allowed), preserving every existing
         // sensor's prior behaviour -- see the field comment in vc_mipi_core.h.
         ctrl->vmax_exposure_margin      = 0;
-        // Default: no vertical crop alignment constraint -- see the field
-        // comment in vc_mipi_core.h. AR2020 sets 2.
+        // Default: no extra vertical crop alignment, colour outputs are always aligned to even
+        // rows (Bayer pattern) -- see the field comment in vc_mipi_core.h.
         ctrl->crop_top_step             = 1;
         // Default: no trigger snapshot mode -- see the field comment in vc_mipi_core.h.
         ctrl->trigger_wakeup_us         = 0;
@@ -1242,8 +1242,6 @@ static void vc_init_ctrl_ar2020(struct vc_ctrl *ctrl, struct vc_desc* desc)
        // ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL; 
         ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
         ctrl->cfa                       = VC_CFA_GRBG;
-        
-        ctrl->crop_top_step             = 2;
 
 }
 
