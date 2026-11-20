@@ -1230,6 +1230,54 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
 }
 
 // ------------------------------------------------------------------------------------------------
+//  Settings for OG05B10 (Rev.01)
+//  5 MegaPixel OmniVision global shutter
+
+static void vc_init_ctrl_og05b10(struct vc_ctrl *ctrl, struct vc_desc* desc)
+{
+        INIT_MESSAGE("OG05B10")
+
+        ctrl->exposure                  = (vc_control) { .min =  80, .max =  500000, .def =  10000 };
+        AGAIN_FRA(0xf8, 23807)
+        DGAIN(0x0fff, 24080)
+
+        ctrl->csr.sen.shs               = (vc_csr4) { .l = 0x3502, .m = 0x3501, .h = 0x3500, .u = 0x0000 };
+        ctrl->csr.sen.again             = (vc_csr2) { .l = 0x3509, .m = 0x3508, .offset = 4, .length = 8 };
+        ctrl->csr.sen.dgain             = (vc_csr2) { .l = 0x350b, .m = 0x350a, .length = 12 };
+        ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x380d, .m = 0x380c, .h = 0x0000, .u = 0x0000 };
+        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x380f, .m = 0x380e, .h = 0x0000, .u = 0x0000 };
+        ctrl->csr.sen.h_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
+        ctrl->csr.sen.v_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
+
+        FRAME(0, 0, 2592, 1944)
+        //                                      scale  scale   hmax    hmax   hmax  vmax      vmax    vmax   vmax    vmax   vmax   blkl  blkl  retrigger
+        //   idx  lanes        format  binning      x      y    min     max    def   min       max     def  scale  margin  floor    max   def        min
+        MODE(  0,     2, FORMAT_RAW08,       0,     1,     1,   510, 0xffff,   510,    6,   0xffff,   2128,     1,    184,     0,     0,    0,         0)
+        MODE(  1,     2, FORMAT_RAW10,       0,     1,     1,   629, 0xffff,   629,    6,   0xffff,   2128,     1,    184,     0,     0,    0,         0)
+        MODE(  2,     4, FORMAT_RAW08,       0,     1,     1,   376, 0xffff,   376,    6,   0xffff,   2128,     1,    184,     0,     0,    0,         0)
+        MODE(  3,     4, FORMAT_RAW10,       0,     1,     1,   376, 0xffff,   376,    6,   0xffff,   2128,     1,    184,     0,     0,    0,         0)
+
+        EXTRA_MODE_REGS(  0, { 0x3b2d, 0x01 }, { 0x3b2e, 0xfe }, { 0x3a9f, 0x08 }, { 0x3503, 0xa8 }, { 0x3864, 0x0a })
+        EXTRA_MODE_REGS(  1, { 0x3b2d, 0x02 }, { 0x3b2e, 0x75 }, { 0x3a9f, 0x08 }, { 0x3503, 0xa8 }, { 0x3864, 0x0a })
+        EXTRA_MODE_REGS(  2, { 0x3b2d, 0x01 }, { 0x3b2e, 0x78 }, { 0x3a9f, 0x08 }, { 0x3503, 0xa8 }, { 0x3864, 0x0a })
+        EXTRA_MODE_REGS(  3, { 0x3b2d, 0x01 }, { 0x3b2e, 0x78 }, { 0x3a9f, 0x08 }, { 0x3503, 0xa8 }, { 0x3864, 0x0a })
+
+        ctrl->clk_ext_trigger           = 54000000;
+        ctrl->clk_pixel                 = 48000000;
+
+        ctrl->flags                     = FLAG_EXPOSURE_OMNIVISION;
+        ctrl->flags                    |= FLAG_RESET_ALWAYS;
+        ctrl->flags                    |= FLAG_IO_ENABLED;
+        ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL | FLAG_TRIGGER_PULSEWIDTH |
+                                          FLAG_TRIGGER_SELF | FLAG_TRIGGER_SINGLE;
+        ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
+        ctrl->vmax_exposure_margin      = 30;
+        ctrl->trigger_wakeup_us         = 700;
+        ctrl->trigger_wakeup_rows       = 0x0a + 18;
+        ctrl->cfa                       = VC_CFA_BGGR;
+}
+
+// ------------------------------------------------------------------------------------------------
 //  Settings for AR2020 (Rev.01)
 //  20 MegaPixel Rolling shutter
 
@@ -1303,6 +1351,7 @@ int vc_mod_ctrl_init(struct vc_ctrl* ctrl, struct vc_desc* desc)
         case MOD_ID_IMX900: vc_init_ctrl_imx900(ctrl, desc); break;
         case MOD_ID_OV7251: vc_init_ctrl_ov7251(ctrl, desc); break;
         case MOD_ID_OV9281: vc_init_ctrl_ov9281(ctrl, desc); break;
+        case MOD_ID_OG05B10: vc_init_ctrl_og05b10(ctrl, desc); break;
         case MOD_ID_AR2020: vc_init_ctrl_ar2020(ctrl, desc); break;
         default:
                 vc_err(dev, "%s(): Detected module not supported!\n", __FUNCTION__);
