@@ -167,7 +167,7 @@ static int i2c_write_reg(struct device *dev, struct i2c_client *client, const __
         struct i2c_adapter *adap = client->adapter;
         struct i2c_msg msg;
         __u8 tx[3];
-        int ret;
+        int ret, i;
 
         vc_reg(dev, "%s():   addr: 0x%04x <= value: 0x%02x\n", func, addr, value);
 
@@ -178,13 +178,15 @@ static int i2c_write_reg(struct device *dev, struct i2c_client *client, const __
         tx[0] = addr >> 8;
         tx[1] = addr & 0xff;
         tx[2] = value;
-        ret = i2c_transfer(adap, &msg, 1);
-        if (ret != 1) {
-                vc_err(&client->dev, "%s(): Writing register 0x%04x (value 0x%02x) to 0x%02x failed\n",
-                        func, addr, value, client->addr);
-                return -EIO;
+        
+        for (i = 0; i < MAX_I2C_RETRY_COUNT; i++) {
+                ret = i2c_transfer(adap, &msg, 1);
+                if (1 == ret) {
+                        return 0;
+                } else {
+                        vc_err(dev, "%s():  try (%d) addr: 0x%04x <= value: 0x%02x, (write) i2c_transfer ret=%d \n", func, i+1, addr, value, ret);
+                }
         }
-
         return 0;
 }
 
@@ -712,6 +714,15 @@ vc_mode vc_core_get_mode_by_param(struct vc_cam *cam, __u8 num_lanes, __u8 forma
         return tRet;
 }
 
+// A mode returned by vc_core_get_mode_by_param() is valid only if a matching
+// entry was found. On failure the function returns a zeroed struct, and
+// num_lanes == 0 is never a real mode (lanes are 1..4), so it is a safe sentinel.
+bool vc_mode_is_valid(const vc_mode *mode)
+{
+        return mode && mode->num_lanes != 0;
+}
+EXPORT_SYMBOL(vc_mode_is_valid);
+
 vc_mode vc_core_get_mode(struct vc_cam *cam)
 {
         struct vc_state *state = &cam->state;
@@ -789,10 +800,12 @@ int vc_core_set_hmax_overwrite(struct vc_cam *cam, __s32 hmax_overwrite)
                 __u8 binning = state->binning_mode;
                 vc_mode mode = vc_core_get_mode_by_param(cam, num_lanes, format, binning);
 
-                if ((__u32)hmax_overwrite < mode.hmax.min) {
-                        hmax_overwrite = mode.hmax.min;
-                } else if ((__u32)hmax_overwrite > mode.hmax.max) {
-                        hmax_overwrite = mode.hmax.max;
+                if (vc_mode_is_valid(&mode)) {
+                        if ((__u32)hmax_overwrite < mode.hmax.min) {
+                                hmax_overwrite = mode.hmax.min;
+                        } else if ((__u32)hmax_overwrite > mode.hmax.max) {
+                                hmax_overwrite = mode.hmax.max;
+                        }
                 }
         }
 
@@ -867,9 +880,46 @@ void vc_core_update_mbus_codes(struct vc_cam *cam)
                         }
                 }
         }
-        vc_dbg(dev, "%s(): MBUS codes (0x%04x, 0x%04x, 0x%04x, 0x%04x, 0x%04x)\n", __FUNCTION__, 
+        vc_dbg(dev, "%s(): MBUS codes (0x%04x, 0x%04x, 0x%04x, 0x%04x, 0x%04x)\n", __FUNCTION__,
                 ctrl->mbus_codes[0], ctrl->mbus_codes[1], ctrl->mbus_codes[2], ctrl->mbus_codes[3], ctrl->mbus_codes[4]);
-        
+
+}
+
+// --- Media-bus code enumeration (generic) -----------------------------------
+// All codes the module supports. A platform driver that cannot pass some of them
+// on (e.g. Raspberry Pi with libcamera) filters them itself.
+
+__u32 vc_core_get_num_mbus_codes(struct vc_cam *cam)
+{
+        struct vc_ctrl *ctrl = &cam->ctrl;
+        __u32 n = 0;
+        int i;
+        for (i = 0; i < MAX_MBUS_CODES; i++) {
+                if (ctrl->mbus_codes[i] == 0)
+                        break;
+                n++;
+        }
+        return n;
+}
+
+__u32 vc_core_get_mbus_code(struct vc_cam *cam, __u32 index)
+{
+        if (index >= vc_core_get_num_mbus_codes(cam))
+                return 0;
+        return cam->ctrl.mbus_codes[index];
+}
+
+int vc_core_is_mbus_code_supported(struct vc_cam *cam, __u32 code)
+{
+        struct vc_ctrl *ctrl = &cam->ctrl;
+        int i;
+        for (i = 0; i < MAX_MBUS_CODES; i++) {
+                if (ctrl->mbus_codes[i] == 0)
+                        break;
+                if (ctrl->mbus_codes[i] == code)
+                        return 0;
+        }
+        return -EINVAL;
 }
 
 int vc_core_try_format(struct vc_cam *cam, __u32 code)
@@ -1085,6 +1135,30 @@ __u32 vc_core_get_num_lanes(struct vc_cam *cam)
         vc_dbg(dev, "%s(): Get number of lanes: %u\n", __FUNCTION__, state->num_lanes);
         return state->num_lanes;
 }
+
+__s32 vc_core_get_lane_datarate(struct vc_cam *cam)
+{
+        struct vc_desc *desc = &cam->desc;
+        struct vc_state *state = &cam->state;
+        struct vc_ctrl *ctrl = &cam->ctrl;
+        struct device *dev = vc_core_get_sen_device(cam);
+        __u8 num_lanes = state->num_lanes;
+        __u8 format = vc_core_mbus_code_to_format(state->format_code);
+        __u8 binning = (ctrl->flags & FLAG_USE_BINNING_INDEX) ? state->binning_mode : 0;
+        int index = vc_core_get_mode_index(cam, num_lanes, format, binning);
+
+        if (index >= 0 && index < desc->num_modes) {
+                __u32 data_rate = *(__u32*)desc->modes[index].data_rate;
+
+                vc_info(dev, "%s(): Get lane datarate: %u bps (mode: %d)\n", __FUNCTION__,
+                        data_rate, index);
+                return data_rate;
+        }
+
+        vc_err(dev, "%s(): Could not get lane datarate!\n", __FUNCTION__);
+        return 0;
+}
+EXPORT_SYMBOL(vc_core_get_lane_datarate);
 
 int vc_core_set_framerate(struct vc_cam *cam, __u32 framerate)
 {
@@ -2170,11 +2244,27 @@ int vc_sen_set_hmax(struct vc_cam *cam)
                 __u8 format = vc_core_mbus_code_to_format(state->format_code);
                 __u8 binning = state->binning_mode;
 
+                vc_mode mode = vc_core_get_mode_by_param(cam, num_lanes, format, binning);
+
+                if (!vc_mode_is_valid(&mode)) {
+                        vc_err(vc_core_get_sen_device(cam), "%s(): No valid mode for HMAX overwrite\n", __FUNCTION__);
+                        return 0;
+                }
+
                 if (cam->state.hmax_overwrite == 0) {
-                        vc_mode mode = vc_core_get_mode_by_param(cam, num_lanes, format, binning);
                         if (mode.hmax.min == mode.hmax.max) {
                                 return 0;
                         }
+                } else if ((__u32)cam->state.hmax_overwrite < mode.hmax.min ||
+                           (__u32)cam->state.hmax_overwrite > mode.hmax.max) {
+                        /* Never write a line outside the current mode's range: a too short
+                         * line truncates and smears the frame without any CSI-2 error.
+                         * Store the clamped value so exposure and VMAX use it too. */
+                        __s32 clamped = clamp_t(__s32, cam->state.hmax_overwrite,
+                                                mode.hmax.min, mode.hmax.max);
+                        vc_warn(vc_core_get_sen_device(cam), "%s(): HMAX overwrite %d out of range [%u, %u], using %d\n",
+                                __FUNCTION__, cam->state.hmax_overwrite, mode.hmax.min, mode.hmax.max, clamped);
+                        cam->state.hmax_overwrite = clamped;
                 }
 
                 return vc_sen_write_hmax(ctrl, vc_core_get_hmax(cam, num_lanes, format, binning));
@@ -2560,7 +2650,17 @@ static __u32 vc_core_calculate_period_1H(struct vc_cam *cam, __u8 num_lanes, __u
         for (index = 0; index <= MAX_VC_MODES; index++) {
                 struct vc_mode *mode = &ctrl->mode[index];
                 if (mode->num_lanes == num_lanes && mode->format == format && (binning_index == ctrl->mode[index].binning)) {
-                        return ((__u64)mode->hmax.def * 1000000000) / ctrl->clk_pixel;
+                        /* Use the line length the sensor actually runs, as vc_sen_set_hmax()
+                         * and vc_core_get_time_per_line_ns() do. With hmax.def here, an HMAX
+                         * overwrite made VMAX and the shutter count lines of the default
+                         * length, so exposure and frame period came out as
+                         * overwrite / hmax.def of what was set. */
+                        __u32 hmax = mode->hmax.def;
+#ifdef ENABLE_ADVANCED_CONTROL
+                        if (cam->state.hmax_overwrite > 0)
+                                hmax = cam->state.hmax_overwrite;
+#endif
+                        return ((__u64)hmax * 1000000000) / ctrl->clk_pixel;
                 }
         }
 
@@ -2606,6 +2706,14 @@ int vc_core_set_binning_mode(struct vc_cam *cam, int mode)
         if (mode > ctrl->max_binning_modes_used) {
                 vc_err(dev, "%s(): Couldn't set binning mode (max supported modes: %d)\n", __FUNCTION__, ctrl->max_binning_modes_used);
                 return -1;
+        }
+
+        /* Binning modes have their own HMAX and VMAX limits: an overwrite made for
+         * the previous mode may be out of range for the new one (as in
+         * vc_core_set_format()). */
+        if (state->binning_mode != mode) {
+                state->hmax_overwrite = 0;
+                state->vmax_overwrite = 0;
         }
 
         state->binning_mode = mode;
@@ -2922,6 +3030,10 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
                         {
                                 vc_mode mode = vc_core_get_mode_by_param(cam, state->num_lanes,
                                         vc_core_mbus_code_to_format(state->format_code), state->binning_mode);
+                                if (!vc_mode_is_valid(&mode)) {
+                                        vc_err(dev, "%s(): No valid mode for VMAX overwrite\n", __FUNCTION__);
+                                        return -EINVAL;
+                                }
                                 __u32 vmax_overwrite_clamped = vc_core_clamp_vmax_overwrite(cam, &mode);
 
                                 // Re-calculate SHS against the overwrite VMAX so exposure
@@ -2973,6 +3085,10 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
                         // so only VMAX follows the overwrite, at least exposure + margin.
                         vc_mode mode = vc_core_get_mode_by_param(cam, state->num_lanes,
                                 vc_core_mbus_code_to_format(state->format_code), state->binning_mode);
+                        if (!vc_mode_is_valid(&mode)) {
+                                vc_err(dev, "%s(): No valid mode for VMAX overwrite\n", __FUNCTION__);
+                                return -EINVAL;
+                        }
                         state->vmax = vc_core_clamp_vmax_overwrite(cam, &mode);
                         if (state->vmax < state->shs + ctrl->vmax_exposure_margin)
                                 state->vmax = state->shs + ctrl->vmax_exposure_margin;

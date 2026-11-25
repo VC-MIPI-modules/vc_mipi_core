@@ -43,9 +43,6 @@ extern int debug;
 #define FLAG_USE_BINNING_INDEX          (1 << 19)
 
 
-
-#define FLAG_EXPOSURE_ONSEMI            (1 <<  20)
-
 // Color Filter Array (Bayer pattern) of a color sensor, starting with the
 // top left pixel of the first two lines.
 enum vc_cfa_pattern {
@@ -71,6 +68,8 @@ enum vc_cfa_pattern {
 
 #define MAX_MBUS_CODES                  5
 #define MAX_VC_DESC_MODES               24
+
+#define MAX_I2C_RETRY_COUNT             5
 
 struct vc_desc_mode {
         __u8 data_rate[4];
@@ -396,8 +395,12 @@ struct i2c_client *vc_mod_get_client(struct device *dev, struct i2c_adapter *ada
 void vc_core_print_debug(struct vc_cam *cam);                                   // Only used by NVIDIA driver
 struct device *vc_core_get_sen_device(struct vc_cam *cam);
 vc_mode vc_core_get_mode(struct vc_cam *cam);
+bool vc_mode_is_valid(const vc_mode *mode);
 int vc_core_get_current_mode_index(struct vc_cam *cam);
 void vc_core_update_mbus_codes(struct vc_cam *cam);
+__u32 vc_core_get_num_mbus_codes(struct vc_cam *cam);
+__u32 vc_core_get_mbus_code(struct vc_cam *cam, __u32 index);
+int vc_core_is_mbus_code_supported(struct vc_cam *cam, __u32 code);
 int vc_core_try_format(struct vc_cam *cam, __u32 code);
 __u32 vc_core_get_optimized_vmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning_mode, __u32 height);
 int vc_core_set_format(struct vc_cam *cam, __u32 code);
@@ -407,6 +410,7 @@ struct vc_frame *vc_core_get_frame(struct vc_cam *cam);
 void vc_core_get_binning_scale(struct vc_cam *cam, __u8 *h_scale, __u8 *v_scale);
 int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number);
 __u32 vc_core_get_num_lanes(struct vc_cam *cam);
+__s32 vc_core_get_lane_datarate(struct vc_cam *cam);
 int vc_core_set_framerate(struct vc_cam *cam, __u32 framerate);
 __u32 vc_core_get_framerate(struct vc_cam *cam);
 __u32 vc_core_get_time_per_line_ns(struct vc_cam *cam);                         // Only used by NXP driver
