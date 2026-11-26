@@ -478,6 +478,9 @@ void vc_core_get_binning_scale(struct vc_cam *cam, __u8 *h_scale, __u8 *v_scale)
 int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number);
 __u32 vc_core_get_num_lanes(struct vc_cam *cam);
 __s32 vc_core_get_lane_datarate(struct vc_cam *cam);
+__u8 vc_core_get_bit_depth(__u8 format);
+__u64 vc_core_get_link_freq(struct vc_cam *cam);
+__u64 vc_core_get_pixel_rate(struct vc_cam *cam);
 int vc_core_set_framerate(struct vc_cam *cam, __u32 framerate);
 __u32 vc_core_get_framerate(struct vc_cam *cam);
 __u32 vc_core_get_time_per_line_ns(struct vc_cam *cam);                         // Only used by NXP driver

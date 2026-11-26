@@ -1399,6 +1399,40 @@ __s32 vc_core_get_lane_datarate(struct vc_cam *cam)
 }
 VC_EXPORT(vc_core_get_lane_datarate);
 
+// Bits per pixel of a MIPI CSI-2 data format (FORMAT_RAW*), 0 if unknown
+__u8 vc_core_get_bit_depth(__u8 format)
+{
+        switch (format) {
+        case FORMAT_RAW08: return 8;
+        case FORMAT_RAW10: return 10;
+        case FORMAT_RAW12: return 12;
+        case FORMAT_RAW14: return 14;
+        }
+        return 0;
+}
+VC_EXPORT(vc_core_get_bit_depth);
+
+// Link frequency in Hz of the module mode in use: the CSI-2 D-PHY transfers data on both
+// clock edges, so the clock is half the lane data rate (module ROM).
+__u64 vc_core_get_link_freq(struct vc_cam *cam)
+{
+        return (__u64)(__u32)vc_core_get_lane_datarate(cam) / 2;
+}
+VC_EXPORT(vc_core_get_link_freq);
+
+// Pixel rate in Hz on the CSI-2 link of the module mode in use:
+// lane data rate * lanes / bits per pixel (NVIDIA: device tree pix_clk_hz).
+__u64 vc_core_get_pixel_rate(struct vc_cam *cam)
+{
+        struct vc_state *state = &cam->state;
+        __u8 bit_depth = vc_core_get_bit_depth(vc_core_mbus_code_to_format(state->format_code));
+
+        if (bit_depth == 0)
+                return 0;
+        return div_u64((__u64)(__u32)vc_core_get_lane_datarate(cam) * state->num_lanes, bit_depth);
+}
+VC_EXPORT(vc_core_get_pixel_rate);
+
 int vc_core_set_framerate(struct vc_cam *cam, __u32 framerate)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
