@@ -165,7 +165,6 @@ static void vc_init_ctrl_imx183_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x7004, .m = 0x7005, .h = 0x7006, .u = 0x0000 };
 
         ctrl->flags                     = FLAG_EXPOSURE_SONY;
-        ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
         ctrl->flags                    |= FLAG_IO_ENABLED;
         ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL | FLAG_TRIGGER_SELF |
                                           FLAG_TRIGGER_SINGLE | FLAG_TRIGGER_SYNC;
@@ -266,6 +265,8 @@ static void vc_init_ctrl_imx178(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE(  5,     4, FORMAT_RAW10,       0,     1,     1,   600, 0xffff,   600,    9,  0x1ffff,   2126,     1,     28,     0,  1023,   50,   2698560)
         MODE(  6,     4, FORMAT_RAW12,       0,     1,     1,   680, 0xffff,   680,    9,  0x1ffff,   2126,     1,     28,     0,  1023,  200,   2698560)
         MODE(  7,     4, FORMAT_RAW14,       0,     1,     1,  1156, 0xffff,  1156,    9,  0x1ffff,   2126,     1,     28,     0,  4095,  800,   2698560)
+
+        ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -292,6 +293,8 @@ static void vc_init_ctrl_imx183(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE(  3,     4, FORMAT_RAW08,       0,     1,     1,   720, 0xffff,   720,    5,  0x1ffff,   3728,     1,     80,     0,   255,   50,   3599997)
         MODE(  4,     4, FORMAT_RAW10,       0,     1,     1,   720, 0xffff,   720,    5,  0x1ffff,   3728,     1,     80,     0,   255,   50,   3599997)
         MODE(  5,     4, FORMAT_RAW12,       0,     1,     1,   862, 0xffff,   862,    5,  0x1ffff,   3728,     1,     80,     0,   255,   50,   3599997)
+
+        ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
 }
 
 // ------------------------------------------------------------------------------------------------
