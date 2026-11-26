@@ -1236,6 +1236,57 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
 //  Settings for OG05B10 (Rev.01)
 //  5 MegaPixel OmniVision global shutter
 
+// ------------------------------------------------------------------------------------------------
+//  OV9281L: Array of 9 linked OV9281 sensors, 11520 x 800, read out as one image.
+//  The FPGA initializes the sensors with HMAX = 2000 (25 us line period at 80 MHz),
+//  needed to transfer 11520 pixels per line, and VMAX = 910. Both are fixed: the
+//  driver writes only SHS. The FPGA sync generator drives all sensors over XTRIG.
+
+static void vc_init_ctrl_ov9281l(struct vc_ctrl *ctrl, struct vc_desc* desc)
+{
+        INIT_MESSAGE("OV9281L")
+
+        // 1 line = 25 us, max. (910 - 25) lines = 22125 us
+        ctrl->exposure                  = (vc_control) { .min =  25, .max =   22125, .def =  10000 };
+        AGAIN_FRA(255, 24050)    // 0xff = 15.94x = 24.05 dB (amplitude), as OV9281
+
+        // No ROI: the FPGA reads out the full array
+        ctrl->csr.sen.h_start           = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
+        ctrl->csr.sen.v_start           = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
+        ctrl->csr.sen.h_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
+        ctrl->csr.sen.v_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
+        ctrl->csr.sen.o_width           = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
+        ctrl->csr.sen.o_height          = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
+        ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x380d, .m = 0x380c, .h = 0x0000, .u = 0x0000 };
+        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x380f, .m = 0x380e, .h = 0x0000, .u = 0x0000 };
+        // NOTE: Modules rom table contains swapped address assigment.
+        ctrl->csr.sen.again             = (vc_csr2) { .l = 0x3509, .m = 0x0000 };
+
+        ctrl->csr.sen.shs.offset = 4;
+        ctrl->csr.sen.shs.length = 20;
+
+        FRAME(0, 0, 11520, 800)
+        // vmax min = SHS min = 1 line (25 us). VMAX itself is static_vmax.
+        //                                      scale  scale   hmax    hmax   hmax  vmax      vmax    vmax   vmax    vmax   vmax   blkl  blkl  retrigger
+        //   idx  lanes        format  binning      x      y    min     max    def   min       max     def  scale  margin  floor    max   def        min
+        MODE(  0,     4, FORMAT_RAW08,       0,     1,     1,  2000,   2000,  2000,    1,    0x38e,  0x38e,     1,      0,     0,     0,    0,         0)
+
+        ctrl->static_vmax               = 0x038e; // 910
+
+        ctrl->clk_ext_trigger           = 10000000;
+        ctrl->clk_pixel                 = 80000000;
+
+        ctrl->flash_factor              = 1758241 >> 4; // (1000 << 4)/9100 >> 4
+        ctrl->flash_toffset             = 4;
+
+        ctrl->flags                     = FLAG_EXPOSURE_OMNIVISION;
+        ctrl->flags                    |= FLAG_IO_ENABLED;
+        ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL;
+        ctrl->flags                    |= FLAG_RESET_ALWAYS;
+        ctrl->flags                    |= FLAG_XTRIG_ALWAYS;
+        ctrl->vmax_exposure_margin      = 25;
+}
+
 static void vc_init_ctrl_og05b10(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         INIT_MESSAGE("OG05B10")
@@ -1354,6 +1405,7 @@ int vc_mod_ctrl_init(struct vc_ctrl* ctrl, struct vc_desc* desc)
         case MOD_ID_IMX900: vc_init_ctrl_imx900(ctrl, desc); break;
         case MOD_ID_OV7251: vc_init_ctrl_ov7251(ctrl, desc); break;
         case MOD_ID_OV9281: vc_init_ctrl_ov9281(ctrl, desc); break;
+        case MOD_ID_OV9281L: vc_init_ctrl_ov9281l(ctrl, desc); break;
         case MOD_ID_OG05B10: vc_init_ctrl_og05b10(ctrl, desc); break;
         case MOD_ID_AR2020: vc_init_ctrl_ar2020(ctrl, desc); break;
         default:

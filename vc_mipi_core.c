@@ -839,9 +839,18 @@ static __u32 vc_core_get_default_format(struct vc_cam *cam)
 {
         struct vc_desc *desc = &cam->desc;
         struct vc_ctrl *ctrl = &cam->ctrl;
-        __u8 format = desc->modes[0].format;
+        __u8 format = 0;
         int is_color = cam->force_color_mode ? 1 : vc_mod_is_color_sensor(desc);
         enum vc_cfa_pattern cfa = vc_core_get_cfa_pattern(ctrl);
+        int i;
+
+        // Skip module modes without a format (0x00), as reported by some FPGA firmwares
+        for (i = 0; i < desc->num_modes; i++) {
+                if (desc->modes[i].format != 0) {
+                        format = desc->modes[i].format;
+                        break;
+                }
+        }
         return vc_core_format_to_mbus_code(format, is_color, cfa);
 }
 
@@ -867,6 +876,9 @@ void vc_core_update_mbus_codes(struct vc_cam *cam)
                                 continue;
                         format = mode->format;
                 }
+                // Skip module modes without a format (0x00), as reported by some FPGA firmwares
+                if (format == 0)
+                        continue;
                 code = vc_core_format_to_mbus_code(format, is_color, cfa);
                 vc_dbg(dev, "%s(): Checking mode %u (code: 0x%04x)\n", __FUNCTION__, modeIx, code);
 
@@ -1524,6 +1536,9 @@ int vc_core_update_controls(struct vc_cam *cam)
 
                 vc_dbg(dev, "%s(): num_lanes: %u, format %u, exposure.max: %u us, framerate.max: %u mHz\n",
                         __FUNCTION__, num_lanes, format, ctrl->exposure.max, ctrl->framerate.max);
+
+                // The V4L2 control needs a default within [min, max]
+                ctrl->exposure.def = clamp(ctrl->exposure.def, ctrl->exposure.min, ctrl->exposure.max);
         }
 
         return 0;
@@ -2363,6 +2378,11 @@ int vc_sen_write_vmax(struct vc_ctrl *ctrl, __u32 vmax)
         struct i2c_client *client = ctrl->client_sen;
         struct device *dev = &client->dev;
 
+        if (ctrl->static_vmax) {
+                vc_dbg(dev, "%s(): Static VMAX %u, not written\n", __FUNCTION__, ctrl->static_vmax);
+                return 0;
+        }
+
         vc_dbg(dev, "%s(): Write sensor VMAX: 0x%08x (%u)\n", __FUNCTION__, vmax, vmax);
 
         return i2c_write_reg4(dev, client, &ctrl->csr.sen.vmax, vmax, __FUNCTION__);
@@ -2572,7 +2592,8 @@ int vc_sen_start_stream(struct vc_cam *cam)
                 ret |= vc_mod_write_trigger_mode(client_mod, REG_TRIGGER_DISABLE);
 
         } else {
-                if ((ctrl->flags & FLAG_EXPOSURE_OMNIVISION) && vc_mod_is_trigger_enabled(cam)) {
+                if (((ctrl->flags & FLAG_EXPOSURE_OMNIVISION) && vc_mod_is_trigger_enabled(cam)) ||
+                    (ctrl->flags & FLAG_XTRIG_ALWAYS)) {
                         io_mode |= REG_IO_XTRIG_ENABLE;
                 }
 
@@ -2732,6 +2753,12 @@ static void vc_core_calculate_vmax(struct vc_cam *cam, __u32 period_1H_ns)
         __u64 frametime_ns;
         __u64 frametime_1H;
 
+        if (ctrl->static_vmax) {
+                state->vmax = ctrl->static_vmax;
+                vc_dbg(dev, "%s(): Static VMAX: %u\n", __FUNCTION__, state->vmax);
+                return;
+        }
+
         state->vmax = vc_core_get_optimized_vmax(cam, num_lanes, format, binning, height);
         vc_dbg(dev, "%s(): Optimized VMAX: %u\n", __FUNCTION__, state->vmax);
         // Lower the frame rate if the frame rate setting requires it.
@@ -2854,7 +2881,15 @@ static void vc_calculate_exposure_normal(struct vc_cam *cam, __u64 exposure_1H)
         __u32 shs_min = vc_core_get_vmax(cam, num_lanes, format, binning).min;
         __u32 vmax_max;
 
-        
+        // Fixed VMAX: only SHS is adjusted, the exposure is limited to the frame time
+        if (ctrl->static_vmax) {
+                state->vmax = ctrl->static_vmax;
+                vmax_max = state->vmax > ctrl->vmax_exposure_margin
+                                       ? state->vmax - ctrl->vmax_exposure_margin : 0;
+                state->shs = clamp_t(__u64, exposure_1H, shs_min, max(shs_min, vmax_max));
+                return;
+        }
+
         vmax_max = state->vmax > ctrl->vmax_exposure_margin
                                ? state->vmax - ctrl->vmax_exposure_margin
                                : state->vmax;

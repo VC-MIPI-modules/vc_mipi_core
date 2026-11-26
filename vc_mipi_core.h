@@ -41,6 +41,9 @@ extern int debug;
 
 #define FLAG_PREGIUS_S                  (1 << 18)
 #define FLAG_USE_BINNING_INDEX          (1 << 19)
+// Keep XTRIG enabled in free running mode too: the module distributes its own
+// sync pulses over XTRIG (e.g. OV9281L linked sensor array)
+#define FLAG_XTRIG_ALWAYS               (1 << 20)
 
 
 // Color Filter Array (Bayer pattern) of a color sensor, starting with the
@@ -347,6 +350,9 @@ struct vc_ctrl {
         __u32 flags;
         __u32 mbus_codes[MAX_MBUS_CODES];
         bool  packed_outputs;
+        // If non-zero, VMAX is fixed by the module and never written by the driver.
+        // Only SHS follows the exposure (e.g. OV9281L linked sensor array).
+        __u32 static_vmax;
 };
 
 struct vc_state {
