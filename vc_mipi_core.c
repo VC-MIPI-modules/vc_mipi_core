@@ -77,6 +77,8 @@ void vc_core_calculate_roi(struct vc_cam *cam, __u32 *w_left, __u32 *w_right, __
 static int vc_sen_read_image_size(struct vc_ctrl *ctrl, struct vc_frame *size);
 void vc_core_get_binning_scale(struct vc_cam *cam, __u8 *h_scale, __u8 *v_scale);
 static struct vc_scaling *vc_core_get_scaling(struct vc_cam *cam);
+static void vc_core_calculate_digital_crop(struct vc_cam *cam, __u32 o_width, __u32 o_height,
+        __u32 w_width, __u32 w_height, __u32 *d_width, __u32 *d_height);
 int i2c_write_regs(struct i2c_client *client, const struct vc_reg *regs, const char* func);
 vc_mode vc_core_get_mode_by_param(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
 __u32 vc_core_get_hmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
@@ -1189,49 +1191,79 @@ int vc_core_enum_mbus_code(struct vc_cam *cam, __u32 index)
         return vc_core_get_mbus_code(cam, index);
 }
 
-int vc_core_live_roi(struct vc_cam *cam, __s32 data)
-{
-        struct vc_state *state = &cam->state;
-        struct device *dev = vc_core_get_sen_device(cam);
-        __u16 binning_mode = data / 100000000;
-        __u32 left = (data - binning_mode * 100000000) / 10000;
-        __u32 top = data - binning_mode * 100000000 - left * 10000;
-        vc_notice(dev, "%s(): binning_mode: %u, left: %u, top: %u\n", __FUNCTION__, 
-                binning_mode, left, top);
-
-        if (state->streaming) {
-                vc_sen_stop_stream(cam);
-                vc_core_set_binning_mode(cam, binning_mode);
-                vc_core_limit_frame_position(cam, left, top);
-                vc_sen_start_stream(cam);
-        }
-
-        return 0;
-}
-
-// Moves the digital crop and changes the scale while streaming (e.g. IMX412, IMX568).
-// The changes are applied together in the next frame (grouped parameter hold).
-int vc_core_live_digital_roi(struct vc_cam *cam, __u32 scale, __u32 left, __u32 top)
+// Live ROI: moves the output window to (left, top) and sets the scale (0: unchanged) while
+// streaming. left and top are the position of the output window, as in the V4L2 crop
+// selection (vc_core_set_frame()).
+// Sensors with a digital crop (d_left, d_top) move it inside the analog crop without stopping
+// the stream; the changes are applied together in the next frame (grouped parameter hold).
+// This needs an analog crop larger than the output (vc_core_set_crop_frame()). Otherwise the
+// analog crop is moved: the stream is stopped and started again.
+int vc_core_live_roi(struct vc_cam *cam, __u32 scale, __u32 left, __u32 top)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
+        struct vc_state *state = &cam->state;
         struct i2c_client *client = ctrl->client_sen;
         struct device *dev = vc_core_get_sen_device(cam);
+        __u32 w_left, w_right, w_width, w_top, w_bottom, w_height, o_width, o_height;
+        __u32 d_width, d_height;
+        __u32 old_scale = state->scale;
         int ret = 0;
 
         vc_dbg(dev, "%s(): scale: %u, left: %u, top: %u\n", __FUNCTION__, scale, left, top);
 
-        if (!ctrl->csr.sen.d_left.l && !ctrl->csr.sen.d_top.l) {
-                vc_err(dev, "%s(): Digital crop not supported by this sensor\n", __FUNCTION__);
-                return -EINVAL;
+        if (scale != 0 && scale != state->scale) {
+                if (ctrl->scale_numerator == 0 || scale < ctrl->scale_numerator) {
+                        vc_err(dev, "%s(): Couldn't set scale %u (numerator: %u)\n", __FUNCTION__,
+                                scale, ctrl->scale_numerator);
+                        return -EINVAL;
+                }
+                state->scale = scale;
         }
 
-        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.group_hold, 0x01, __FUNCTION__);
-        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.scale, scale, __FUNCTION__);
-        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.d_left, left, __FUNCTION__);
-        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.d_top, top, __FUNCTION__);
-        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.group_hold, 0x00, __FUNCTION__);
+        // Digital crop: the output window has to fit into the current analog crop
+        if (ctrl->csr.sen.d_left.l && ctrl->csr.sen.d_top.l && state->streaming) {
+                vc_core_calculate_roi(cam, &w_left, &w_right, &w_width, &w_top, &w_bottom, &w_height,
+                        &o_width, &o_height);
+                vc_core_calculate_digital_crop(cam, o_width, o_height, w_width, w_height, &d_width, &d_height);
+                if (left >= state->frame.left && top >= state->frame.top &&
+                    left - state->frame.left + d_width <= w_width &&
+                    top - state->frame.top + d_height <= w_height) {
+                        state->d_left = left - state->frame.left;
+                        state->d_top = top - state->frame.top;
+
+                        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.group_hold, 0x01, __FUNCTION__);
+                        if (ctrl->scale_numerator)
+                                ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.scale, state->scale, __FUNCTION__);
+                        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.d_left, state->d_left, __FUNCTION__);
+                        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.d_top, state->d_top, __FUNCTION__);
+                        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.group_hold, 0x00, __FUNCTION__);
+                        return ret;
+                }
+        }
+
+        // Move the analog crop, applied with the next stream start
+        state->d_left = 0;
+        state->d_top = 0;
+        vc_core_limit_frame_position(cam, left, top);
+        if (state->scale != old_scale)
+                vc_core_update_controls(cam);
+
+        if (state->streaming) {
+                ret |= vc_sen_stop_stream(cam);
+                ret |= vc_sen_start_stream(cam);
+        }
 
         return ret;
+}
+
+// Current live ROI: scale (0 without scaler) and position of the output window
+void vc_core_get_live_roi(struct vc_cam *cam, __u32 *scale, __u32 *left, __u32 *top)
+{
+        struct vc_state *state = &cam->state;
+
+        *scale = cam->ctrl.scale_numerator ? state->scale : 0;
+        *left = state->frame.left + state->d_left;
+        *top = state->frame.top + state->d_top;
 }
 
 int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number)
@@ -1712,6 +1744,8 @@ static void vc_core_state_init(struct vc_cam *cam)
         state->crop.top = 0;
         state->crop.width = 0;
         state->crop.height = 0;
+        state->d_left = 0;
+        state->d_top = 0;
         state->scaling_mode = 0;
         state->scale = ctrl->scale_numerator;
         state->streaming = 0;
@@ -2302,6 +2336,16 @@ static __u32 vc_core_unscale(struct vc_cam *cam, __u32 size, __u8 factor)
         return (size * cam->state.scale) / cam->ctrl.scale_numerator;
 }
 
+// Digital crop size: output size before the scaler, at most the analog crop
+static void vc_core_calculate_digital_crop(struct vc_cam *cam, __u32 o_width, __u32 o_height,
+        __u32 w_width, __u32 w_height, __u32 *d_width, __u32 *d_height)
+{
+        struct vc_scaling *scaling = vc_core_get_scaling(cam);
+
+        *d_width = scaling ? min(vc_core_unscale(cam, o_width, scaling->h_factor), w_width) : o_width;
+        *d_height = scaling ? min(vc_core_unscale(cam, o_height, scaling->v_factor), w_height) : o_height;
+}
+
 void vc_core_calculate_roi(struct vc_cam *cam, __u32 *left, __u32 *right, __u32 *width,
         __u32 *top, __u32 *bottom, __u32 *height, __u32 *o_width, __u32 *o_height)
 {
@@ -2529,9 +2573,7 @@ int vc_sen_set_roi(struct vc_cam *cam)
                         scaling ? state->scale : ctrl->scale_numerator, __FUNCTION__);
         }
 
-        // Digital crop: output size before the scaler, at most the analog crop
-        d_width = scaling ? min(vc_core_unscale(cam, o_width, scaling->h_factor), (__u32)w_width) : o_width;
-        d_height = scaling ? min(vc_core_unscale(cam, o_height, scaling->v_factor), (__u32)w_height) : o_height;
+        vc_core_calculate_digital_crop(cam, o_width, o_height, w_width, w_height, &d_width, &d_height);
 
         vc_dbg(dev, "%s(): Set sensor roi: "
                 "(left-width-right: %u+%u=%u=>%u, top-height-bottom: %u+%u=%u=>%u)\n",
@@ -2556,6 +2598,13 @@ int vc_sen_set_roi(struct vc_cam *cam)
         } else {
                 ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.d_width, d_width, __FUNCTION__);
                 ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.d_height, d_height, __FUNCTION__);
+                if (ctrl->csr.sen.d_width.l) {
+                        // Live ROI offset, kept inside the (possibly changed) analog crop
+                        state->d_left = min(state->d_left, (__u32)w_width - d_width);
+                        state->d_top = min(state->d_top, (__u32)w_height - d_height);
+                        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.d_left, state->d_left, __FUNCTION__);
+                        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.d_top, state->d_top, __FUNCTION__);
+                }
                 ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.h_end, w_right, __FUNCTION__);
                 if (FLAG_DOUBLE_HEIGHT == (ctrl->flags & FLAG_DOUBLE_HEIGHT)) {
                         ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.v_end, o_height / 2, __FUNCTION__);

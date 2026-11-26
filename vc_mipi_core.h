@@ -402,6 +402,8 @@ struct vc_state {
         struct vc_frame crop;           // Pixel, analog crop (V4L2 crop), 0x0: follows the output frame
         __u8 scaling_mode;
         __u32 scale;                    // Scale denominator, image size * scale_numerator / scale
+        __u32 d_left;                   // Digital crop offset in the analog crop (live ROI)
+        __u32 d_top;
         __u8 num_lanes;
         __u8 io_mode;
         __u8 trigger_mode;
@@ -470,8 +472,8 @@ __u32 vc_core_get_time_per_line_ns(struct vc_cam *cam);                         
 int vc_core_set_binning_mode(struct vc_cam *cam, int mode);
 __u64 vc_core_mdB_to_times(int mdB);                                            // Only used by NXP driver
 int vc_core_times_to_mdB(__u64 times);                                          // Only used by NXP driver
-int vc_core_live_roi(struct vc_cam *cam, __s32 data);
-int vc_core_live_digital_roi(struct vc_cam *cam, __u32 scale, __u32 left, __u32 top);
+int vc_core_live_roi(struct vc_cam *cam, __u32 scale, __u32 left, __u32 top);
+void vc_core_get_live_roi(struct vc_cam *cam, __u32 *scale, __u32 *left, __u32 *top);
 #ifdef ENABLE_ADVANCED_CONTROL
 int vc_core_set_hmax_overwrite(struct vc_cam *cam, __s32 hmax_overwrite);       // Only used by NXP driver
 int vc_core_set_vmax_overwrite(struct vc_cam *cam, __s32 vmax_overwrite);       // Only used by NXP driver
