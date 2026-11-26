@@ -639,7 +639,8 @@ static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         ctrl->csr.sen.dgain             = (vc_csr2) { .l = 0x020f, .m = 0x020e };
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x3033, .m = 0x3032 };
-        ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x0343, .m = 0x0342, .h = 0x0000, .u = 0x0000 };
+        // No HMAX register: 0x0342 is LINE_LENGTH_PCK in pixel clocks, the hmax values below are
+        // the line time in clk_pixel units. Writing them stops the sensor output (as on NXP).
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x0341, .m = 0x0340, .h = 0x0000, .u = 0x0000 };
         ctrl->csr.sen.shs               = (vc_csr4) { .l = 0x0203, .m = 0x0202, .h = 0x0000, .u = 0x0000 };
         // Digital crop and scaler (DIG_CROP_*, SCALE_M), group hold (GRP_PARAM_HOLD)
@@ -657,19 +658,19 @@ static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
         // max 4095, default 256 = 64 in RAW10 as the libcamera tuning (black_level 4096) expects.
         //                                                 scale  scale  hmax    hmax  hmax  vmax    vmax    vmax   vmax    vmax   vmax  blkl  blkl  retrigger
         //        idx  base  lanes        format  binning      x      y   min     max   def   min     max     def  scale  margin  floor   max   def        min
-        MODE(       0,           2, FORMAT_RAW10,       0,     1,     1,  599, 0xffff,  599,    1, 0xffff, 0x0c14,     1,     52,     0, 4095,  256,         0)
-        MODE(       1,           4, FORMAT_RAW10,       0,     1,     1,  218, 0xffff,  218,    1, 0xffff, 0x0c14,     1,     52,     0, 4095,  256,         0)
+        MODE(       0,           2, FORMAT_RAW10,       0,     1,     1,  599,    599,  599,    1, 0xffff, 0x0c14,     1,     52,     0, 4095,  256,         0)
+        MODE(       1,           4, FORMAT_RAW10,       0,     1,     1,  218,    218,  218,    1, 0xffff, 0x0c14,     1,     52,     0, 4095,  256,         0)
 
-        VIRT_MODE(  2,    0,     2, FORMAT_RAW10,       1,     1,     2,  436, 0xffff,  436,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
-        VIRT_MODE(  3,    1,     4, FORMAT_RAW10,       1,     1,     2,  218, 0xffff,  218,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
-        VIRT_MODE(  4,    0,     2, FORMAT_RAW10,       2,     2,     2,  436, 0xffff,  436,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
-        VIRT_MODE(  5,    1,     4, FORMAT_RAW10,       2,     2,     2,  218, 0xffff,  218,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
-        VIRT_MODE(  6,    0,     2, FORMAT_RAW10,       3,     4,     2,  436, 0xffff,  436,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
-        VIRT_MODE(  7,    1,     4, FORMAT_RAW10,       3,     4,     2,  218, 0xffff,  218,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
-        VIRT_MODE(  8,    0,     2, FORMAT_RAW10,       4,     8,     2,  436, 0xffff,  436,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
-        VIRT_MODE(  9,    1,     4, FORMAT_RAW10,       4,     8,     2,  218, 0xffff,  218,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
-        VIRT_MODE( 10,    0,     2, FORMAT_RAW10,       5,    16,     2,  436, 0xffff,  436,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
-        VIRT_MODE( 11,    1,     4, FORMAT_RAW10,       5,    16,     2,  218, 0xffff,  218,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
+        VIRT_MODE(  2,    0,     2, FORMAT_RAW10,       1,     1,     2,  436,    436,  436,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
+        VIRT_MODE(  3,    1,     4, FORMAT_RAW10,       1,     1,     2,  218,    218,  218,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
+        VIRT_MODE(  4,    0,     2, FORMAT_RAW10,       2,     2,     2,  436,    436,  436,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
+        VIRT_MODE(  5,    1,     4, FORMAT_RAW10,       2,     2,     2,  218,    218,  218,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
+        VIRT_MODE(  6,    0,     2, FORMAT_RAW10,       3,     4,     2,  436,    436,  436,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
+        VIRT_MODE(  7,    1,     4, FORMAT_RAW10,       3,     4,     2,  218,    218,  218,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
+        VIRT_MODE(  8,    0,     2, FORMAT_RAW10,       4,     8,     2,  436,    436,  436,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
+        VIRT_MODE(  9,    1,     4, FORMAT_RAW10,       4,     8,     2,  218,    218,  218,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
+        VIRT_MODE( 10,    0,     2, FORMAT_RAW10,       5,    16,     2,  436,    436,  436,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
+        VIRT_MODE( 11,    1,     4, FORMAT_RAW10,       5,    16,     2,  218,    218,  218,    1, 0xffff, 0x0624,     0,      0,     0, 4095,  256,         0)
 
         ctrl->clk_ext_trigger           = 37125000;
         ctrl->clk_pixel                 = 37125000;
