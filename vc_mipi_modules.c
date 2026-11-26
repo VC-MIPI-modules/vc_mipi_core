@@ -109,7 +109,6 @@ int vc_mod_is_color_sensor(struct vc_desc *desc)
         }
         return 0;
 }
-VC_EXPORT(vc_mod_is_color_sensor);
 
 static void vc_init_ctrl(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
@@ -1487,4 +1486,3 @@ int vc_mod_ctrl_init(struct vc_ctrl* ctrl, struct vc_desc* desc)
 
         return 0;
 }
-VC_EXPORT(vc_mod_ctrl_init);

@@ -9,14 +9,8 @@
 #include <linux/i2c.h>
 #include <linux/videodev2.h>
 
-// Built as its own kernel module (vc_mipi_core.ko, NXP and NVIDIA): define
-// VC_CORE_AS_MODULE to export the core functions. Without it the core is linked
-// into the camera driver (Raspberry Pi) and nothing is exported.
-#ifdef VC_CORE_AS_MODULE
-#define VC_EXPORT(sym) EXPORT_SYMBOL(sym)
-#else
-#define VC_EXPORT(sym)
-#endif
+// The core is linked into the camera driver module on all platforms (Raspberry Pi, NXP,
+// NVIDIA), so it exports no symbols.
 
 // Debug level, module parameter "debug" (named vc_debug to avoid clashes with other modules)
 extern int vc_debug;
