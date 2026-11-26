@@ -453,6 +453,7 @@ int vc_core_set_out_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width
 int vc_core_set_scaling_mode(struct vc_cam *cam, int mode);
 int vc_core_set_scale(struct vc_cam *cam, int scale);
 int vc_core_enum_mbus_code(struct vc_cam *cam, __u32 index);
+__u8 vc_core_mbus_code_to_format(__u32 code);
 void vc_core_get_binning_scale(struct vc_cam *cam, __u8 *h_scale, __u8 *v_scale);
 int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number);
 __u32 vc_core_get_num_lanes(struct vc_cam *cam);

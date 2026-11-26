@@ -604,7 +604,7 @@ static int __maybe_unused vc_core_get_fourcc_fmt(__u32 code, char *buf, bool pac
         return 0;
 }
 
-static __u8 vc_core_mbus_code_to_format(__u32 code)
+__u8 vc_core_mbus_code_to_format(__u32 code)
 {
         switch (code) {
         case MEDIA_BUS_FMT_Y8_1X8:
