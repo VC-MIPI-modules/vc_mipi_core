@@ -1,7 +1,6 @@
 #ifndef _VC_MIPI_MODULES_H
 #define _VC_MIPI_MODULES_H
 
-#define VERSION "0.6.11"
 
 #include "vc_mipi_core.h"
 
