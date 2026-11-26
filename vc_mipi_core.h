@@ -9,9 +9,19 @@
 #include <linux/i2c.h>
 #include <linux/videodev2.h>
 
-extern int debug;
+// Built as its own kernel module (vc_mipi_core.ko, NXP and NVIDIA): define
+// VC_CORE_AS_MODULE to export the core functions. Without it the core is linked
+// into the camera driver (Raspberry Pi) and nothing is exported.
+#ifdef VC_CORE_AS_MODULE
+#define VC_EXPORT(sym) EXPORT_SYMBOL(sym)
+#else
+#define VC_EXPORT(sym)
+#endif
 
-#define level(level) if (debug >= level)
+// Debug level, module parameter "debug" (named vc_debug to avoid clashes with other modules)
+extern int vc_debug;
+
+#define level(level) if (vc_debug >= level)
 #define vc_reg(dev, fmt, ...) level(6) dev_info(dev, fmt, ##__VA_ARGS__)
 #define vc_dbg(dev, fmt, ...) level(5) dev_info(dev, fmt, ##__VA_ARGS__)
 #define vc_info(dev, fmt, ...) level(4) dev_info(dev, fmt, ##__VA_ARGS__)

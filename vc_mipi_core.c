@@ -10,6 +10,17 @@
 #include <linux/moduleparam.h>
 #include <linux/module.h>
 
+int vc_debug = 3;
+module_param_named(debug, vc_debug, int, 0644);
+MODULE_PARM_DESC(debug, "Debug level (0-6)");
+VC_EXPORT(vc_debug);
+
+#ifdef VC_CORE_AS_MODULE
+MODULE_VERSION(VERSION);
+MODULE_DESCRIPTION("Vision Components GmbH - VC MIPI CSI-2 driver core");
+MODULE_LICENSE("GPL v2");
+#endif
+
 #define READ_DEFAULT_REG_VALUES
 #define OVERWRITE_HMAX
 
@@ -309,21 +320,25 @@ int vc_read_i2c_reg(struct i2c_client *client, const __u16 addr)
 {
         return i2c_read_reg(&client->dev, client, addr, __FUNCTION__);
 }
+VC_EXPORT(vc_read_i2c_reg);
 
 int vc_write_i2c_reg(struct i2c_client *client, const __u16 addr, const __u8 value)
 {
         return i2c_write_reg(&client->dev, client, addr, value, __FUNCTION__);
 }
+VC_EXPORT(vc_write_i2c_reg);
 
 int vc_write_i2c_reg4(struct i2c_client *client, struct vc_csr4 *csr, const __u32 value)
 {
         return i2c_write_reg4(&client->dev, client, csr, value, __FUNCTION__);
 }
+VC_EXPORT(vc_write_i2c_reg4);
 
 int vc_write_i2c_reg2(struct i2c_client *client, struct vc_csr2 *csr, const __u32 value)
 {
         return i2c_write_reg2(&client->dev, client, csr, value, __FUNCTION__);
 }
+VC_EXPORT(vc_write_i2c_reg2);
 // ------------------------------------------------------------------------------------------------
 //  Helper Functions for debugging
 
@@ -505,6 +520,7 @@ void vc_core_print_debug(struct vc_cam *cam)
 {
         vc_core_print_mode(cam);
 }
+VC_EXPORT(vc_core_print_debug);
 
 // ------------------------------------------------------------------------------------------------
 //  Helper functions for internal data structures
@@ -513,6 +529,7 @@ struct device *vc_core_get_sen_device(struct vc_cam *cam)
 {
         return &cam->ctrl.client_sen->dev;
 }
+VC_EXPORT(vc_core_get_sen_device);
 
 struct device *vc_core_get_mod_device(struct vc_cam *cam)
 {
@@ -638,6 +655,7 @@ __u8 vc_core_mbus_code_to_format(__u32 code)
         }
         return 0;
 }
+VC_EXPORT(vc_core_mbus_code_to_format);
 
 static enum vc_cfa_pattern vc_core_get_cfa_pattern(struct vc_ctrl *ctrl)
 {
@@ -726,7 +744,7 @@ bool vc_mode_is_valid(const vc_mode *mode)
 {
         return mode && mode->num_lanes != 0;
 }
-EXPORT_SYMBOL(vc_mode_is_valid);
+VC_EXPORT(vc_mode_is_valid);
 
 vc_mode vc_core_get_mode(struct vc_cam *cam)
 {
@@ -758,6 +776,7 @@ vc_mode vc_core_get_mode(struct vc_cam *cam)
         return tRet;
         
 }
+VC_EXPORT(vc_core_get_mode);
 
 // Pixel clock of the line timing (HMAX units). A VT system clock divider other than the
 // module default 4 changes it (IMX412).
@@ -769,6 +788,7 @@ __u32 vc_core_get_clk_pixel(struct vc_cam *cam)
 #endif
         return cam->ctrl.clk_pixel;
 }
+VC_EXPORT(vc_core_get_clk_pixel);
 
 __u32 vc_core_get_hmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
 {
@@ -830,6 +850,7 @@ int vc_core_set_hmax_overwrite(struct vc_cam *cam, __s32 hmax_overwrite)
         cam->state.hmax_overwrite = hmax_overwrite;
         return 0;
 }
+VC_EXPORT(vc_core_set_hmax_overwrite);
 
 int vc_core_set_vmax_overwrite(struct vc_cam *cam, __s32 vmax_overwrite)
 {
@@ -840,6 +861,7 @@ int vc_core_set_vmax_overwrite(struct vc_cam *cam, __s32 vmax_overwrite)
         cam->state.vmax = vmax_overwrite;
         return 0;
 }
+VC_EXPORT(vc_core_set_vmax_overwrite);
 
 int vc_core_set_width_offset(struct vc_cam *cam, __s32 width_offset)
 {
@@ -849,6 +871,7 @@ int vc_core_set_width_offset(struct vc_cam *cam, __s32 width_offset)
         cam->state.width_offset = width_offset;
         return 0;
 }
+VC_EXPORT(vc_core_set_width_offset);
 
 // VT system clock divider (IMX412 VTSYCK_DIV, 0x0303): the line time scales with divider / 4
 // at the same HMAX. 0 keeps the module default (4).
@@ -866,6 +889,7 @@ int vc_core_set_vt_syck_div(struct vc_cam *cam, __s32 divider)
         vc_core_update_controls(cam);
         return 0;
 }
+VC_EXPORT(vc_core_set_vt_syck_div);
 
 int vc_core_set_height_offset(struct vc_cam *cam, __s32 height_offset)
 {
@@ -875,6 +899,7 @@ int vc_core_set_height_offset(struct vc_cam *cam, __s32 height_offset)
         cam->state.height_offset = height_offset;
         return 0;
 }
+VC_EXPORT(vc_core_set_height_offset);
 #endif
 
 static __u32 vc_core_get_default_format(struct vc_cam *cam)
@@ -938,6 +963,7 @@ void vc_core_update_mbus_codes(struct vc_cam *cam)
                 ctrl->mbus_codes[0], ctrl->mbus_codes[1], ctrl->mbus_codes[2], ctrl->mbus_codes[3], ctrl->mbus_codes[4]);
 
 }
+VC_EXPORT(vc_core_update_mbus_codes);
 
 // --- Media-bus code enumeration (generic) -----------------------------------
 // All codes the module supports. A platform driver that cannot pass some of them
@@ -955,6 +981,7 @@ __u32 vc_core_get_num_mbus_codes(struct vc_cam *cam)
         }
         return n;
 }
+VC_EXPORT(vc_core_get_num_mbus_codes);
 
 __u32 vc_core_get_mbus_code(struct vc_cam *cam, __u32 index)
 {
@@ -962,6 +989,7 @@ __u32 vc_core_get_mbus_code(struct vc_cam *cam, __u32 index)
                 return 0;
         return cam->ctrl.mbus_codes[index];
 }
+VC_EXPORT(vc_core_get_mbus_code);
 
 int vc_core_is_mbus_code_supported(struct vc_cam *cam, __u32 code)
 {
@@ -975,6 +1003,7 @@ int vc_core_is_mbus_code_supported(struct vc_cam *cam, __u32 code)
         }
         return -EINVAL;
 }
+VC_EXPORT(vc_core_is_mbus_code_supported);
 
 int vc_core_try_format(struct vc_cam *cam, __u32 code)
 {
@@ -1003,6 +1032,7 @@ int vc_core_try_format(struct vc_cam *cam, __u32 code)
 
         return -EINVAL;
 }
+VC_EXPORT(vc_core_try_format);
 
 int vc_core_set_format(struct vc_cam *cam, __u32 code)
 {
@@ -1030,6 +1060,7 @@ int vc_core_set_format(struct vc_cam *cam, __u32 code)
 
         return 0;
 }
+VC_EXPORT(vc_core_set_format);
 
 __u32 vc_core_get_format(struct vc_cam *cam)
 {
@@ -1043,6 +1074,7 @@ __u32 vc_core_get_format(struct vc_cam *cam)
 
         return code;
 }
+VC_EXPORT(vc_core_get_format);
 
 // Vertical crop alignment of top and height in rows: Colour (Bayer) outputs are aligned to an
 // even step (at least 2 rows, the Bayer pattern), mono outputs are not aligned (1).
@@ -1122,6 +1154,7 @@ int vc_core_set_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __
 
         return 0;
 }
+VC_EXPORT(vc_core_set_frame);
 
 struct vc_frame *vc_core_get_frame(struct vc_cam *cam)
 {
@@ -1132,6 +1165,7 @@ struct vc_frame *vc_core_get_frame(struct vc_cam *cam)
 
         return frame;
 }
+VC_EXPORT(vc_core_get_frame);
 
 // --- Frames of the NXP driver ------------------------------------------------
 // native: full sensor frame, crop: analog crop (0x0: follows the output frame),
@@ -1141,11 +1175,13 @@ struct vc_frame *vc_core_get_native_frame(struct vc_cam *cam)
 {
         return &cam->ctrl.frame;
 }
+VC_EXPORT(vc_core_get_native_frame);
 
 struct vc_frame *vc_core_get_crop_frame(struct vc_cam *cam)
 {
         return &cam->state.crop;
 }
+VC_EXPORT(vc_core_get_crop_frame);
 
 int vc_core_set_crop_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __u32 height)
 {
@@ -1164,16 +1200,19 @@ int vc_core_set_crop_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 widt
 
         return 0;
 }
+VC_EXPORT(vc_core_set_crop_frame);
 
 struct vc_frame *vc_core_get_out_frame(struct vc_cam *cam)
 {
         return &cam->state.frame;
 }
+VC_EXPORT(vc_core_get_out_frame);
 
 int vc_core_set_out_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __u32 height)
 {
         return vc_core_set_frame(cam, left, top, width, height);
 }
+VC_EXPORT(vc_core_set_out_frame);
 
 int vc_core_set_scaling_mode(struct vc_cam *cam, int mode)
 {
@@ -1193,6 +1232,7 @@ int vc_core_set_scaling_mode(struct vc_cam *cam, int mode)
 
         return 0;
 }
+VC_EXPORT(vc_core_set_scaling_mode);
 
 // The image is scaled by scale_numerator / scale, only down scaling is supported.
 int vc_core_set_scale(struct vc_cam *cam, int scale)
@@ -1212,12 +1252,14 @@ int vc_core_set_scale(struct vc_cam *cam, int scale)
 
         return 0;
 }
+VC_EXPORT(vc_core_set_scale);
 
 // Media bus code by index, 0 if the index is out of range (NXP driver interface)
 int vc_core_enum_mbus_code(struct vc_cam *cam, __u32 index)
 {
         return vc_core_get_mbus_code(cam, index);
 }
+VC_EXPORT(vc_core_enum_mbus_code);
 
 // Live ROI: moves the output window to (left, top) and sets the scale (0: unchanged) while
 // streaming. left and top are the position of the output window, as in the V4L2 crop
@@ -1283,6 +1325,7 @@ int vc_core_live_roi(struct vc_cam *cam, __u32 scale, __u32 left, __u32 top)
 
         return ret;
 }
+VC_EXPORT(vc_core_live_roi);
 
 // Current live ROI: scale (0 without scaler) and position of the output window
 void vc_core_get_live_roi(struct vc_cam *cam, __u32 *scale, __u32 *left, __u32 *top)
@@ -1293,6 +1336,7 @@ void vc_core_get_live_roi(struct vc_cam *cam, __u32 *scale, __u32 *left, __u32 *
         *left = state->frame.left + state->d_left;
         *top = state->frame.top + state->d_top;
 }
+VC_EXPORT(vc_core_get_live_roi);
 
 int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number)
 {
@@ -1321,6 +1365,7 @@ int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number)
         vc_err(dev, "%s(): Number of lanes %u not supported!\n", __FUNCTION__, number);
         return -EINVAL;
 }
+VC_EXPORT(vc_core_set_num_lanes);
 
 __u32 vc_core_get_num_lanes(struct vc_cam *cam)
 {
@@ -1330,6 +1375,7 @@ __u32 vc_core_get_num_lanes(struct vc_cam *cam)
         vc_dbg(dev, "%s(): Get number of lanes: %u\n", __FUNCTION__, state->num_lanes);
         return state->num_lanes;
 }
+VC_EXPORT(vc_core_get_num_lanes);
 
 // Lane data rate of the module (ROM) mode that vc_mod_set_mode() selects for the
 // current format, lanes, trigger and binning. The index of ctrl->mode can not be
@@ -1351,7 +1397,7 @@ __s32 vc_core_get_lane_datarate(struct vc_cam *cam)
         vc_err(dev, "%s(): Could not get lane datarate!\n", __FUNCTION__);
         return 0;
 }
-EXPORT_SYMBOL(vc_core_get_lane_datarate);
+VC_EXPORT(vc_core_get_lane_datarate);
 
 int vc_core_set_framerate(struct vc_cam *cam, __u32 framerate)
 {
@@ -1371,6 +1417,7 @@ int vc_core_set_framerate(struct vc_cam *cam, __u32 framerate)
 
         return vc_sen_set_exposure(cam, cam->state.exposure);
 }
+VC_EXPORT(vc_core_set_framerate);
 
 __u32 vc_core_get_framerate(struct vc_cam *cam)
 {
@@ -1388,6 +1435,7 @@ __u32 vc_core_get_framerate(struct vc_cam *cam)
         vc_info(dev, "%s(): Get framerate: %u mHz\n", __FUNCTION__, framerate);
         return framerate;
 }
+VC_EXPORT(vc_core_get_framerate);
 
 __u32 vc_core_calculate_max_exposure(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
 {
@@ -1461,6 +1509,7 @@ __u32 vc_core_get_optimized_vmax(struct vc_cam *cam, __u8 num_lanes,  __u8 forma
 
         return vmax_def;
 }
+VC_EXPORT(vc_core_get_optimized_vmax);
 
 __u32 vc_core_calculate_max_frame_rate(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning, __u32 height)
 {
@@ -1521,6 +1570,7 @@ struct i2c_client *vc_mod_get_client(struct device *dev, struct i2c_adapter *ada
 
         return NULL;
 }
+VC_EXPORT(vc_mod_get_client);
 
 int vc_mod_set_power(struct vc_cam *cam, int on)
 {
@@ -1737,6 +1787,7 @@ int vc_core_update_controls(struct vc_cam *cam)
 
         return 0;
 }
+VC_EXPORT(vc_core_update_controls);
 
 static void vc_core_state_init(struct vc_cam *cam)
 {
@@ -1821,6 +1872,7 @@ int vc_core_init(struct vc_cam *cam, struct i2c_client *client)
         vc_notice(&ctrl->client_mod->dev, "VC MIPI Core successfully initialized\n");
         return 0;
 }
+VC_EXPORT(vc_core_init);
 
 int vc_core_release(struct vc_cam *cam)
 {
@@ -1828,6 +1880,7 @@ int vc_core_release(struct vc_cam *cam)
         i2c_unregister_device(ctrl->client_mod);
         return 0;
 }
+VC_EXPORT(vc_core_release);
 
 static int vc_mod_write_exposure(struct i2c_client *client, __u32 value)
 {
@@ -1924,6 +1977,7 @@ int vc_mod_reset_module(struct vc_cam *cam, __u8 mode)
 
         return ret;
 }
+VC_EXPORT(vc_mod_reset_module);
 
 #ifdef READ_DEFAULT_REG_VALUES
 static __u32 vc_sen_read_hmax(struct vc_ctrl *ctrl)
@@ -2050,6 +2104,7 @@ __u8 vc_mod_get_mode(struct vc_cam *cam)
         vc_mod_get_mode_params(cam, &num_lanes, &format, &binning);
         return vc_mod_find_mode(cam, num_lanes, format, type, binning);
 }
+VC_EXPORT(vc_mod_get_mode);
 
 int vc_mod_set_mode(struct vc_cam *cam, int *reset)
 {
@@ -2113,6 +2168,7 @@ int vc_mod_set_mode(struct vc_cam *cam, int *reset)
 
         return ret;
 }
+VC_EXPORT(vc_mod_set_mode);
 
 // True for the trigger modes that use a module trigger mode (MODE_TYPE_TRIGGER)
 static bool vc_mod_is_trigger_type(struct vc_cam *cam)
@@ -2194,6 +2250,7 @@ int vc_mod_set_trigger_mode(struct vc_cam *cam, int mode)
 
         return 0;
 }
+VC_EXPORT(vc_mod_set_trigger_mode);
 
 int vc_mod_get_trigger_mode(struct vc_cam *cam)
 {
@@ -2209,6 +2266,7 @@ int vc_mod_get_trigger_mode(struct vc_cam *cam)
         }
         return 0;
 }
+VC_EXPORT(vc_mod_get_trigger_mode);
 
 int vc_mod_set_single_trigger(struct vc_cam *cam)
 {
@@ -2219,6 +2277,7 @@ int vc_mod_set_single_trigger(struct vc_cam *cam)
 
         return i2c_write_reg(dev, client, MOD_REG_EXTTRIG, REG_TRIGGER_SINGLE, __FUNCTION__);
 }
+VC_EXPORT(vc_mod_set_single_trigger);
 
 
 int vc_mod_set_io_mode(struct vc_cam *cam, int mode)
@@ -2269,6 +2328,7 @@ int vc_mod_set_io_mode(struct vc_cam *cam, int mode)
 
         return 0;
 }
+VC_EXPORT(vc_mod_set_io_mode);
 
 int vc_mod_get_io_mode(struct vc_cam *cam)
 {
@@ -2344,6 +2404,7 @@ void vc_core_get_binning_scale(struct vc_cam *cam, __u8 *h_scale, __u8 *v_scale)
         if (ctrl->mode[index].v_scale > 0)
                 *v_scale = ctrl->mode[index].v_scale;
 }
+VC_EXPORT(vc_core_get_binning_scale);
 
 // Active scaling mode, NULL if the sensor has no scaler or scaling is off.
 static struct vc_scaling *vc_core_get_scaling(struct vc_cam *cam)
@@ -2477,6 +2538,7 @@ int vc_core_get_current_mode_index(struct vc_cam *cam)
         }
         return index;
 }
+VC_EXPORT(vc_core_get_current_mode_index);
 
 static int vc_sen_write_mode_regs(struct vc_cam *cam, const struct vc_reg *regs)
 {
@@ -2570,6 +2632,7 @@ int vc_sen_set_hmax(struct vc_cam *cam)
         return 0;
 #endif
 }
+VC_EXPORT(vc_sen_set_hmax);
 
 int vc_sen_set_roi(struct vc_cam *cam)
 {
@@ -2661,6 +2724,7 @@ int vc_sen_set_roi(struct vc_cam *cam)
 
         return ret;
 }
+VC_EXPORT(vc_sen_set_roi);
 
 struct v4l2_rect vc_sen_get_roi(struct vc_cam *cam)
 {
@@ -2678,6 +2742,7 @@ struct v4l2_rect vc_sen_get_roi(struct vc_cam *cam)
         return rect;
 
 }
+VC_EXPORT(vc_sen_get_roi);
 
 int vc_sen_write_vmax(struct vc_ctrl *ctrl, __u32 vmax)
 {
@@ -2693,6 +2758,7 @@ int vc_sen_write_vmax(struct vc_ctrl *ctrl, __u32 vmax)
 
         return i2c_write_reg4(dev, client, &ctrl->csr.sen.vmax, vmax, __FUNCTION__);
 }
+VC_EXPORT(vc_sen_write_vmax);
 
 static int vc_sen_write_shs(struct vc_ctrl *ctrl, __u32 shs)
 {
@@ -2738,6 +2804,7 @@ __u64 vc_core_mdB_to_times(int mdB)
         }
         return (times * 1000) / BASE;
 }
+VC_EXPORT(vc_core_mdB_to_times);
 
 int vc_core_times_to_mdB(__u64 times)
 {
@@ -2749,6 +2816,7 @@ int vc_core_times_to_mdB(__u64 times)
         }
         return mdB;
 }
+VC_EXPORT(vc_core_times_to_mdB);
 
 int vc_sen_set_gain(struct vc_cam *cam, __u64 gain, bool unit_is_mdB)
 {
@@ -2837,6 +2905,7 @@ int vc_sen_set_gain(struct vc_cam *cam, __u64 gain, bool unit_is_mdB)
         cam->state.gain = gain_mdB;
         return 0;
 }
+VC_EXPORT(vc_sen_set_gain);
 
 int vc_sen_set_blacklevel(struct vc_cam *cam, __u32 blacklevel_rel)
 {
@@ -2864,6 +2933,7 @@ int vc_sen_set_blacklevel(struct vc_cam *cam, __u32 blacklevel_rel)
         state->blacklevel = blacklevel_rel;
         return 0;
 }
+VC_EXPORT(vc_sen_set_blacklevel);
 
 int vc_sen_start_stream(struct vc_cam *cam)
 {
@@ -2937,6 +3007,7 @@ int vc_sen_start_stream(struct vc_cam *cam)
 
         return ret;
 }
+VC_EXPORT(vc_sen_start_stream);
 
 int vc_sen_stop_stream(struct vc_cam *cam)
 {
@@ -2961,6 +3032,7 @@ int vc_sen_stop_stream(struct vc_cam *cam)
 
         return ret;
 }
+VC_EXPORT(vc_sen_stop_stream);
 
 // ------------------------------------------------------------------------------------------------
 
@@ -3018,6 +3090,7 @@ __u32 vc_core_get_time_per_line_ns(struct vc_cam *cam)
 
         return (hmax * 1000000000) / vc_core_get_clk_pixel(cam);
 }
+VC_EXPORT(vc_core_get_time_per_line_ns);
 
 int vc_core_set_binning_mode(struct vc_cam *cam, int mode)
 {
@@ -3046,6 +3119,7 @@ int vc_core_set_binning_mode(struct vc_cam *cam, int mode)
 
         return 0;
 }
+VC_EXPORT(vc_core_set_binning_mode);
 
 static void vc_core_calculate_vmax(struct vc_cam *cam, __u32 period_1H_ns)
 {
@@ -3497,3 +3571,4 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
 
         return ret;
 }
+VC_EXPORT(vc_sen_set_exposure);
