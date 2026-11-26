@@ -1077,7 +1077,7 @@ static void vc_init_ctrl_imx568(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE(       0,           2, FORMAT_RAW08,       0,     1,     1,  656, 0xffff,  656,   26, 0xffffff, 0x88a,     1,    122,     0,  255,   15,   1058562)
         MODE(       1,           2, FORMAT_RAW10,       0,     1,     1,  810, 0xffff,  810,   22, 0xffffff, 0x884,     1,    116,     0, 1023,   60,   1273590)
         MODE(       2,           2, FORMAT_RAW12,       0,     1,     1,  965, 0xffff,  965,   20, 0xffffff, 0x880,     1,    112,     0, 4095,  240,   1514484)
-        MODE(       3,           4, FORMAT_RAW08,       0,     1,     1,  348, 0xffff,  370,   46, 0xffffff, 0x8a8,     1,    152,     0,  255,   15,    553716)
+        MODE(       3,           4, FORMAT_RAW08,       0,     1,     1,  348, 0xffff,  348,   46, 0xffffff, 0x8a8,     1,    152,     0,  255,   15,    553716)
         MODE(       4,           4, FORMAT_RAW10,       0,     1,     1,  425, 0xffff,  425,   38, 0xffffff, 0x89e,     1,    142,     0, 1023,   60,    673812)
         MODE(       5,           4, FORMAT_RAW12,       0,     1,     1,  502, 0xffff,  502,   34, 0xffffff, 0x896,     1,    134,     0, 4095,  240,    793692)
 
@@ -1153,9 +1153,9 @@ static void vc_init_ctrl_imx585(struct vc_ctrl *ctrl, struct vc_desc* desc)
         //                                      scale  scale   hmax    hmax   hmax  vmax      vmax    vmax   vmax    vmax   vmax   blkl  blkl  retrigger
         //   idx  lanes        format  binning      x      y    min     max    def   min       max     def  scale  margin  floor    max   def        min
         MODE(  0,     2, FORMAT_RAW10,       0,     1,     1,  1100, 0xffff,  1100,    8,  0x1ffff, 0x08ca,     1,     70,  1024, 0x3ff, 0x32,         0)
-        MODE(  1,     2, FORMAT_RAW12,       0,     1,     1,  1100, 0xffff,  1100,    8,  0x1ffff, 0x08ca,     1,     70,  1024, 0x3ff, 0x32,         0)
+        MODE(  1,     2, FORMAT_RAW12,       0,     1,     1,  1320, 0xffff,  1320,    8,  0x1ffff, 0x08ca,     1,     70,  1024, 0x3ff, 0x32,         0)
         MODE(  2,     4, FORMAT_RAW10,       0,     1,     1,   550, 0xffff,   550,    8,  0x1ffff, 0x08ca,     1,     70,  1024, 0x3ff, 0x32,         0)
-        MODE(  3,     4, FORMAT_RAW12,       0,     1,     1,   550, 0xffff,   550,    8,  0x1ffff, 0x08ca,     1,     70,  1024, 0x3ff, 0x32,         0)
+        MODE(  3,     4, FORMAT_RAW12,       0,     1,     1,   660, 0xffff,   660,    8,  0x1ffff, 0x08ca,     1,     70,  1024, 0x3ff, 0x32,         0)
 }
 
 // ------------------------------------------------------------------------------------------------
