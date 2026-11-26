@@ -192,6 +192,14 @@ struct vc_sen_csr {
         struct vc_csr2 w_height;
         struct vc_csr2 o_width;
         struct vc_csr2 o_height;
+        // Digital crop and scaling (e.g. IMX412), 0 = not supported
+        struct vc_csr2 d_left;
+        struct vc_csr2 d_top;
+        struct vc_csr2 d_width;
+        struct vc_csr2 d_height;
+        struct vc_csr2 scale;
+        // Grouped parameter hold: register changes apply together in the next frame
+        struct vc_csr2 group_hold;
         struct vc_csr4 flash_duration;
         struct vc_csr4 flash_offset;
 };
@@ -204,6 +212,21 @@ typedef struct vc_reg {
         __u16 address;
         __u8 value;
 } vc_reg;
+
+// Scaling mode of sensors with a scaler (e.g. IMX412). h_factor/v_factor > 0:
+// the image is scaled horizontally/vertically by scale_numerator / state->scale.
+#define MAX_VC_SCALINGS                 3
+typedef struct vc_scaling {
+        __u8 h_factor;
+        __u8 v_factor;
+        struct vc_reg regs[8];
+} vc_scaling;
+
+#define SCALING_START(scaling, h, v) \
+        scaling = (vc_scaling) { .h_factor = h, .v_factor = v }; \
+        { const struct vc_reg regs [] = {
+#define SCALING_END(scaling) \
+        , {0, 0} }; memcpy(&scaling.regs, regs, sizeof(regs)); }
 
 typedef struct vc_mode {
         __u8       num_lanes;
@@ -318,6 +341,10 @@ struct vc_ctrl {
         struct vc_tout tout;
 
         __u8 max_binning_modes_used;
+        // Scaling modes, scalings[0] is "no scaling". Only used if max_scaling_mode > 0.
+        struct vc_scaling scalings[MAX_VC_SCALINGS];
+        __u8 max_scaling_mode;
+        __u8 scale_numerator;
         
         // Control and status registers
         struct vc_csr csr;
@@ -366,7 +393,10 @@ struct vc_state {
         __u32 retrigger_cnt;
         __u32 framerate;
         __u32 format_code;
-        struct vc_frame frame;          // Pixel
+        struct vc_frame frame;          // Pixel, output frame (V4L2 compose / format size)
+        struct vc_frame crop;           // Pixel, analog crop (V4L2 crop), 0x0: follows the output frame
+        __u8 scaling_mode;
+        __u32 scale;                    // Scale denominator, image size * scale_numerator / scale
         __u8 num_lanes;
         __u8 io_mode;
         __u8 trigger_mode;
@@ -378,6 +408,7 @@ struct vc_state {
 #ifdef ENABLE_ADVANCED_CONTROL
         __s32 hmax_overwrite;
         __s32 vmax_overwrite;
+        __s32 width_offset;
         __s32 height_offset;
 #endif
 };
@@ -413,6 +444,15 @@ int vc_core_set_format(struct vc_cam *cam, __u32 code);
 __u32 vc_core_get_format(struct vc_cam *cam);
 int vc_core_set_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __u32 height);
 struct vc_frame *vc_core_get_frame(struct vc_cam *cam);
+// Frames as used by the NXP driver: native = sensor, crop = analog crop, out = output (= frame)
+struct vc_frame *vc_core_get_native_frame(struct vc_cam *cam);
+struct vc_frame *vc_core_get_crop_frame(struct vc_cam *cam);
+int vc_core_set_crop_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __u32 height);
+struct vc_frame *vc_core_get_out_frame(struct vc_cam *cam);
+int vc_core_set_out_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __u32 height);
+int vc_core_set_scaling_mode(struct vc_cam *cam, int mode);
+int vc_core_set_scale(struct vc_cam *cam, int scale);
+int vc_core_enum_mbus_code(struct vc_cam *cam, __u32 index);
 void vc_core_get_binning_scale(struct vc_cam *cam, __u8 *h_scale, __u8 *v_scale);
 int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number);
 __u32 vc_core_get_num_lanes(struct vc_cam *cam);
@@ -423,11 +463,13 @@ __u32 vc_core_get_time_per_line_ns(struct vc_cam *cam);                         
 int vc_core_set_binning_mode(struct vc_cam *cam, int mode);
 __u64 vc_core_mdB_to_times(int mdB);                                            // Only used by NXP driver
 int vc_core_times_to_mdB(__u64 times);                                          // Only used by NXP driver
-int vc_core_live_roi(struct vc_cam *cam, __s32 data);                           // Only used by NXP driver
+int vc_core_live_roi(struct vc_cam *cam, __s32 data);
+int vc_core_live_digital_roi(struct vc_cam *cam, __u32 scale, __u32 left, __u32 top);
 #ifdef ENABLE_ADVANCED_CONTROL
 int vc_core_set_hmax_overwrite(struct vc_cam *cam, __s32 hmax_overwrite);       // Only used by NXP driver
 int vc_core_set_vmax_overwrite(struct vc_cam *cam, __s32 vmax_overwrite);       // Only used by NXP driver
-int vc_core_set_height_offset(struct vc_cam *cam, __s32 vmax_overwrite);        // Only used by NXP driver
+int vc_core_set_width_offset(struct vc_cam *cam, __s32 width_offset);           // Only used by NXP driver
+int vc_core_set_height_offset(struct vc_cam *cam, __s32 height_offset);         // Only used by NXP driver
 #endif
 
 // --- Function to initialize the vc core --------------------------------------

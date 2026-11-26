@@ -617,6 +617,10 @@ static void vc_init_ctrl_imx392(struct vc_ctrl *ctrl, struct vc_desc* desc)
 #define IMX412_BINNING_TYPE_EXT_EN     0x3f42
 #define IMX412_BINNING_TYPE_H_EXT      0x3f43
 #define IMX412_BLACKLEVEL_ENABLE       0x3030
+#define IMX412_SCALING_MODE            0x0401
+#define IMX412_SCALING_MODE_DISABLE    0x00
+#define IMX412_SCALING_MODE_H          0x01
+#define IMX412_SCALING_MODE_H_V        0x02
 
 static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
@@ -631,6 +635,13 @@ static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x0343, .m = 0x0342, .h = 0x0000, .u = 0x0000 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x0341, .m = 0x0340, .h = 0x0000, .u = 0x0000 };
         ctrl->csr.sen.shs               = (vc_csr4) { .l = 0x0203, .m = 0x0202, .h = 0x0000, .u = 0x0000 };
+        // Digital crop and scaler (DIG_CROP_*, SCALE_M), group hold (GRP_PARAM_HOLD)
+        ctrl->csr.sen.d_left            = (vc_csr2) { .l = 0x0409, .m = 0x0408 };
+        ctrl->csr.sen.d_top             = (vc_csr2) { .l = 0x040b, .m = 0x040a };
+        ctrl->csr.sen.d_width           = (vc_csr2) { .l = 0x040d, .m = 0x040c };
+        ctrl->csr.sen.d_height          = (vc_csr2) { .l = 0x040f, .m = 0x040e };
+        ctrl->csr.sen.scale             = (vc_csr2) { .l = 0x0405, .m = 0x0404 };
+        ctrl->csr.sen.group_hold        = (vc_csr2) { .l = 0x0104, .m = 0x0000 };
 
         FRAME(0, 0, 4032, 3040)
         // vmax min (= minimum exposure for FLAG_EXPOSURE_NORMAL): measured linear down to 1 line.
@@ -683,6 +694,19 @@ static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
                             { IMX412_BINNING_TYPE_H_EXT, 0x01 },                  { IMX412_BLACKLEVEL_ENABLE, 0x01 })
 
         ctrl->max_binning_modes_used = 5;
+
+        // Scaling: 0 = off, 1 = horizontal, 2 = horizontal and vertical, by 16 / scale
+        SCALING_START(ctrl->scalings[0], 0, 0)
+                { IMX412_SCALING_MODE, IMX412_SCALING_MODE_DISABLE }
+        SCALING_END(ctrl->scalings[0])
+        SCALING_START(ctrl->scalings[1], 1, 0)
+                { IMX412_SCALING_MODE, IMX412_SCALING_MODE_H }
+        SCALING_END(ctrl->scalings[1])
+        SCALING_START(ctrl->scalings[2], 1, 1)
+                { IMX412_SCALING_MODE, IMX412_SCALING_MODE_H_V }
+        SCALING_END(ctrl->scalings[2])
+        ctrl->max_scaling_mode          = 2;
+        ctrl->scale_numerator           = 16;
 
         ctrl->flags                     = FLAG_RESET_ALWAYS;
         ctrl->flags                    |= FLAG_EXPOSURE_NORMAL;
@@ -997,6 +1021,11 @@ static void vc_init_ctrl_imx568(struct vc_ctrl *ctrl, struct vc_desc* desc)
         AGAIN_LIN(480, 48000)
 
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x35b4, .m = 0x35b5 };
+        // Live digital ROI (vc_core_live_digital_roi())
+        ctrl->csr.sen.d_left            = (vc_csr2) { .l = 0x3120, .m = 0x3121 };
+        ctrl->csr.sen.d_top             = (vc_csr2) { .l = 0x3122, .m = 0x3123 };
+        ctrl->csr.sen.scale             = (vc_csr2) { .l = 0x303C };
+        ctrl->csr.sen.group_hold        = (vc_csr2) { .l = 0x3034 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x30d4, .m = 0x30d5, .h = 0x30d6, .u = 0x0000 };
         ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x30d8, .m = 0x30d9, .h = 0x0000, .u = 0x0000 };
         ctrl->csr.sen.mode              = (vc_csr2) { .l = 0x3000, .m = 0x3010 };

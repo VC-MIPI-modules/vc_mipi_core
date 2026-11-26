@@ -75,6 +75,7 @@ void vc_core_calculate_roi(struct vc_cam *cam, __u32 *w_left, __u32 *w_right, __
         __u32 *w_top, __u32 *w_bottom, __u32 *w_height, __u32 *o_width, __u32 *o_height);
 static int vc_sen_read_image_size(struct vc_ctrl *ctrl, struct vc_frame *size);
 void vc_core_get_binning_scale(struct vc_cam *cam, __u8 *h_scale, __u8 *v_scale);
+static struct vc_scaling *vc_core_get_scaling(struct vc_cam *cam);
 int i2c_write_regs(struct i2c_client *client, const struct vc_reg *regs, const char* func);
 vc_mode vc_core_get_mode_by_param(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
 __u32 vc_core_get_hmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
@@ -825,6 +826,15 @@ int vc_core_set_vmax_overwrite(struct vc_cam *cam, __s32 vmax_overwrite)
         return 0;
 }
 
+int vc_core_set_width_offset(struct vc_cam *cam, __s32 width_offset)
+{
+        struct device *dev = vc_core_get_sen_device(cam);
+        vc_notice(dev, "%s(): Set width offset: %d\n", __FUNCTION__, width_offset);
+
+        cam->state.width_offset = width_offset;
+        return 0;
+}
+
 int vc_core_set_height_offset(struct vc_cam *cam, __s32 height_offset)
 {
         struct device *dev = vc_core_get_sen_device(cam);
@@ -1091,6 +1101,92 @@ struct vc_frame *vc_core_get_frame(struct vc_cam *cam)
         return frame;
 }
 
+// --- Frames of the NXP driver ------------------------------------------------
+// native: full sensor frame, crop: analog crop (0x0: follows the output frame),
+// out: output frame, the same as vc_core_get_frame() / vc_core_set_frame().
+
+struct vc_frame *vc_core_get_native_frame(struct vc_cam *cam)
+{
+        return &cam->ctrl.frame;
+}
+
+struct vc_frame *vc_core_get_crop_frame(struct vc_cam *cam)
+{
+        return &cam->state.crop;
+}
+
+int vc_core_set_crop_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __u32 height)
+{
+        struct vc_ctrl *ctrl = &cam->ctrl;
+        struct vc_frame *crop = &cam->state.crop;
+        struct device *dev = vc_core_get_sen_device(cam);
+
+        vc_info(dev, "%s(): Set crop frame (%u, %u)/%ux%u\n", __FUNCTION__, left, top, width, height);
+
+        crop->left = left;
+        crop->top = top;
+        crop->width = min(width, ctrl->frame.width);
+        crop->height = min(height, ctrl->frame.height);
+
+        vc_core_update_controls(cam);
+
+        return 0;
+}
+
+struct vc_frame *vc_core_get_out_frame(struct vc_cam *cam)
+{
+        return &cam->state.frame;
+}
+
+int vc_core_set_out_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __u32 height)
+{
+        return vc_core_set_frame(cam, left, top, width, height);
+}
+
+int vc_core_set_scaling_mode(struct vc_cam *cam, int mode)
+{
+        struct vc_ctrl *ctrl = &cam->ctrl;
+        struct device *dev = vc_core_get_sen_device(cam);
+
+        vc_info(dev, "%s(): Set scaling mode: %d\n", __FUNCTION__, mode);
+
+        if (mode < 0 || mode > ctrl->max_scaling_mode) {
+                vc_err(dev, "%s(): Couldn't set scaling mode (max supported mode: %u)\n",
+                        __FUNCTION__, ctrl->max_scaling_mode);
+                return -EINVAL;
+        }
+
+        cam->state.scaling_mode = mode;
+        vc_core_update_controls(cam);
+
+        return 0;
+}
+
+// The image is scaled by scale_numerator / scale, only down scaling is supported.
+int vc_core_set_scale(struct vc_cam *cam, int scale)
+{
+        struct vc_ctrl *ctrl = &cam->ctrl;
+        struct device *dev = vc_core_get_sen_device(cam);
+
+        if (ctrl->scale_numerator == 0 || scale < ctrl->scale_numerator) {
+                vc_err(dev, "%s(): Couldn't set scale %d (numerator: %u)\n", __FUNCTION__,
+                        scale, ctrl->scale_numerator);
+                return -EINVAL;
+        }
+
+        vc_info(dev, "%s(): Set scale: %u/%d\n", __FUNCTION__, ctrl->scale_numerator, scale);
+        cam->state.scale = scale;
+        vc_core_update_controls(cam);
+
+        return 0;
+}
+
+// Media bus code by index, 0 if the index is out of range (NXP driver interface)
+int vc_core_enum_mbus_code(struct vc_cam *cam, __u32 index)
+{
+        return vc_core_get_mbus_code(cam, index);
+}
+
 int vc_core_live_roi(struct vc_cam *cam, __s32 data)
 {
         struct vc_state *state = &cam->state;
@@ -1109,6 +1205,31 @@ int vc_core_live_roi(struct vc_cam *cam, __s32 data)
         }
 
         return 0;
+}
+
+// Moves the digital crop and changes the scale while streaming (e.g. IMX412, IMX568).
+// The changes are applied together in the next frame (grouped parameter hold).
+int vc_core_live_digital_roi(struct vc_cam *cam, __u32 scale, __u32 left, __u32 top)
+{
+        struct vc_ctrl *ctrl = &cam->ctrl;
+        struct i2c_client *client = ctrl->client_sen;
+        struct device *dev = vc_core_get_sen_device(cam);
+        int ret = 0;
+
+        vc_dbg(dev, "%s(): scale: %u, left: %u, top: %u\n", __FUNCTION__, scale, left, top);
+
+        if (!ctrl->csr.sen.d_left.l && !ctrl->csr.sen.d_top.l) {
+                vc_err(dev, "%s(): Digital crop not supported by this sensor\n", __FUNCTION__);
+                return -EINVAL;
+        }
+
+        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.group_hold, 0x01, __FUNCTION__);
+        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.scale, scale, __FUNCTION__);
+        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.d_left, left, __FUNCTION__);
+        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.d_top, top, __FUNCTION__);
+        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.group_hold, 0x00, __FUNCTION__);
+
+        return ret;
 }
 
 int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number)
@@ -1530,6 +1651,17 @@ int vc_core_update_controls(struct vc_cam *cam)
         __u8 format = vc_core_mbus_code_to_format(state->format_code);
         __u8 binning = state->binning_mode;
         __u32 height = state->frame.height;
+
+        // With an analog crop or scaling the read out height differs from the output height
+        if ((state->crop.width > 0 && state->crop.height > 0) || vc_core_get_scaling(cam)) {
+                __u32 left, right, width, top, bottom, w_height, o_width, o_height;
+                __u8 h_scale, v_scale;
+
+                vc_core_calculate_roi(cam, &left, &right, &width, &top, &bottom, &w_height, &o_width, &o_height);
+                vc_core_get_binning_scale(cam, &h_scale, &v_scale);
+                height = w_height / v_scale;
+        }
+
         if (ctrl->flags & FLAG_INCREASE_FRAME_RATE) {
                 ctrl->exposure.max = vc_core_calculate_max_exposure(cam, num_lanes, format, binning);
                 ctrl->framerate.max = vc_core_calculate_max_frame_rate(cam, num_lanes, format, binning, height);
@@ -1574,12 +1706,19 @@ static void vc_core_state_init(struct vc_cam *cam)
         state->frame.top = 0;
         state->frame.width = ctrl->frame.width;
         state->frame.height = ctrl->frame.height;
+        state->crop.left = 0;
+        state->crop.top = 0;
+        state->crop.width = 0;
+        state->crop.height = 0;
+        state->scaling_mode = 0;
+        state->scale = ctrl->scale_numerator;
         state->streaming = 0;
         state->flags = 0x00;
 
 #ifdef ENABLE_ADVANCED_CONTROL
         state->hmax_overwrite = 0;
         state->vmax_overwrite = 0;
+        state->width_offset = 0;
         state->height_offset = 0;
 #endif
 }
@@ -2108,15 +2247,38 @@ void vc_core_get_binning_scale(struct vc_cam *cam, __u8 *h_scale, __u8 *v_scale)
                 *v_scale = ctrl->mode[index].v_scale;
 }
 
+// Active scaling mode, NULL if the sensor has no scaler or scaling is off.
+static struct vc_scaling *vc_core_get_scaling(struct vc_cam *cam)
+{
+        struct vc_ctrl *ctrl = &cam->ctrl;
+        struct vc_state *state = &cam->state;
+
+        if (ctrl->max_scaling_mode == 0 || ctrl->scale_numerator == 0 ||
+            state->scaling_mode == 0 || state->scaling_mode > ctrl->max_scaling_mode)
+                return NULL;
+        return &ctrl->scalings[state->scaling_mode];
+}
+
+// Size before the scaler for an output size: size * scale / scale_numerator
+static __u32 vc_core_unscale(struct vc_cam *cam, __u32 size, __u8 factor)
+{
+        if (factor == 0 || cam->ctrl.scale_numerator == 0)
+                return size;
+        return (size * cam->state.scale) / cam->ctrl.scale_numerator;
+}
+
 void vc_core_calculate_roi(struct vc_cam *cam, __u32 *left, __u32 *right, __u32 *width,
         __u32 *top, __u32 *bottom, __u32 *height, __u32 *o_width, __u32 *o_height)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
+        struct vc_scaling *scaling = vc_core_get_scaling(cam);
         __u8 h_scale, v_scale;
 #ifdef ENABLE_ADVANCED_CONTROL
+        __u32 frame_width = state->frame.width + state->width_offset;
         __u32 frame_height = state->frame.height + state->height_offset;
 #else
+        __u32 frame_width = state->frame.width;
         __u32 frame_height = state->frame.height;
 #endif
 
@@ -2124,10 +2286,24 @@ void vc_core_calculate_roi(struct vc_cam *cam, __u32 *left, __u32 *right, __u32 
 
         *left = ctrl->frame.left + state->frame.left;
         *top = ctrl->frame.top + state->frame.top;
-        *width = state->frame.width * h_scale;
-        *height = frame_height * v_scale;
 
-        *o_width = state->frame.width;
+        if (state->crop.width > 0 && state->crop.height > 0) {
+                // Analog crop set explicitly (V4L2 crop selection)
+                *width = state->crop.width;
+                *height = state->crop.height;
+        } else if (scaling) {
+                *width = vc_core_unscale(cam, frame_width, scaling->h_factor) * h_scale;
+                *height = vc_core_unscale(cam, frame_height, scaling->v_factor) * v_scale;
+                if (*left + *width > ctrl->frame.width)
+                        *width = ctrl->frame.width - *left;
+                if (*top + *height > ctrl->frame.height)
+                        *height = ctrl->frame.height - *top;
+        } else {
+                *width = frame_width * h_scale;
+                *height = frame_height * v_scale;
+        }
+
+        *o_width = frame_width;
         *o_height = frame_height;
 
         if (ctrl->flags & FLAG_DOUBLE_HEIGHT) {
@@ -2290,7 +2466,7 @@ int vc_sen_set_hmax(struct vc_cam *cam)
 int vc_sen_set_roi(struct vc_cam *cam)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
-        struct vc_desc *desc = &cam->desc;
+        struct vc_state *state = &cam->state;
 
         struct i2c_client *client = ctrl->client_sen;
         struct device *dev = &client->dev;
@@ -2300,13 +2476,27 @@ int vc_sen_set_roi(struct vc_cam *cam)
         vc_csr2 vc2OP_BLK_HWIDTH = (vc_csr2) { .l = 0x30d0, .m = 0x30d1 };
         vc_csr2 vc2INFO_HWIDTH   = (vc_csr2) { .l = 0x30d2, .m = 0x30d3 };
 
-        vc_csr2 DIG_CROP_IMAGE_WIDTH  = (vc_csr2) { .l = 0x040d, .m = 0x040c };
-        vc_csr2 DIG_CROP_IMAGE_HEIGHT = (vc_csr2) { .l = 0x040f, .m = 0x040e };
+        struct vc_scaling *scaling = vc_core_get_scaling(cam);
+        __u32 d_width, d_height;
 
         vc_core_get_binning_scale(cam, &h_scale, &v_scale);
         vc_dbg(dev, "%s() h_scale: %d, v_scale: %d \n", __FUNCTION__, h_scale, v_scale);
 
         vc_core_calculate_roi(cam, &w_left, &w_right, &w_width, &w_top, &w_bottom, &w_height, &o_width, &o_height);
+
+        // Scaler (only sensors with scaling modes): mode registers and scale
+        if (ctrl->max_scaling_mode > 0) {
+                struct vc_scaling *regs = scaling ? scaling : &ctrl->scalings[0];
+                vc_dbg(dev, "%s(): scaling mode: %u, scale: %u/%u\n", __FUNCTION__,
+                        state->scaling_mode, ctrl->scale_numerator, state->scale);
+                ret |= i2c_write_regs(client, regs->regs, __FUNCTION__);
+                ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.scale,
+                        scaling ? state->scale : ctrl->scale_numerator, __FUNCTION__);
+        }
+
+        // Digital crop: output size before the scaler, at most the analog crop
+        d_width = scaling ? min(vc_core_unscale(cam, o_width, scaling->h_factor), (__u32)w_width) : o_width;
+        d_height = scaling ? min(vc_core_unscale(cam, o_height, scaling->v_factor), (__u32)w_height) : o_height;
 
         vc_dbg(dev, "%s(): Set sensor roi: "
                 "(left-width-right: %u+%u=%u=>%u, top-height-bottom: %u+%u=%u=>%u)\n",
@@ -2329,10 +2519,8 @@ int vc_sen_set_roi(struct vc_cam *cam)
                 ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.w_width, w_width, __FUNCTION__);
                 ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.w_height, w_height, __FUNCTION__);
         } else {
-                if (MOD_ID_IMX412 == desc->mod_id) {
-                        ret |= i2c_write_reg2(dev, client, &DIG_CROP_IMAGE_WIDTH, o_width, __FUNCTION__);
-                        ret |= i2c_write_reg2(dev, client, &DIG_CROP_IMAGE_HEIGHT, o_height, __FUNCTION__);
-                } 
+                ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.d_width, d_width, __FUNCTION__);
+                ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.d_height, d_height, __FUNCTION__);
                 ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.h_end, w_right, __FUNCTION__);
                 if (FLAG_DOUBLE_HEIGHT == (ctrl->flags & FLAG_DOUBLE_HEIGHT)) {
                         ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.v_end, o_height / 2, __FUNCTION__);
