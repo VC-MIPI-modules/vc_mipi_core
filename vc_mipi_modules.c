@@ -788,6 +788,39 @@ static void vc_init_ctrl_imx462(struct vc_ctrl *ctrl, struct vc_desc *desc)
 #define IMX56X_GSDLY                    0x30e6
 
 // ------------------------------------------------------------------------------------------------
+//  Settings for IMX540 (Rev.01)
+//  24.55 MegaPixel Pregius S. Values from the NVIDIA driver (DEV-236), not measured on Raspberry Pi.
+//  No HMAX register (fixed line length), the sensor registers are at 0x02xx, so not FLAG_PREGIUS_S.
+
+static void vc_init_ctrl_imx540(struct vc_ctrl *ctrl, struct vc_desc *desc)
+{
+        INIT_MESSAGE("IMX540")
+
+        AGAIN_LIN(480, 48000)
+
+        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x02d4, .m = 0x02d5, .h = 0x02d6, .u = 0x0000 };
+        ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x07b4, .m = 0x07b5 };
+
+        FRAME(8, 0, 5312, 4600)
+
+        // vmax margin = vmax def - height
+        //                                                 scale  scale  hmax    hmax  hmax  vmax      vmax   vmax   vmax    vmax   vmax  blkl  blkl  retrigger
+        //        idx  base  lanes        format  binning      x      y   min     max   def   min       max    def  scale  margin  floor   max   def        min
+        MODE(       0,           2, FORMAT_RAW08,       0,     1,     1, 1120,  1120, 1120,    8, 0xffffff,  4708,     1,    108,     0,  255,   15,         0)
+        MODE(       1,           2, FORMAT_RAW10,       0,     1,     1, 1388,  1388, 1388,    8, 0xffffff,  4706,     1,    106,     0, 1023,   60,         0)
+        MODE(       2,           2, FORMAT_RAW12,       0,     1,     1, 1648,  1648, 1648,    6, 0xffffff,  4704,     1,    104,     0, 4095,  240,         0)
+        MODE(       3,           4, FORMAT_RAW08,       0,     1,     1,  716,   716,  716,   10, 0xffffff,  4714,     1,    114,     0,  255,   15,         0)
+        MODE(       4,           4, FORMAT_RAW10,       0,     1,     1,  892,   892,  892,   10, 0xffffff,  4714,     1,    114,     0, 1023,   60,         0)
+        MODE(       5,           4, FORMAT_RAW12,       0,     1,     1, 1067,  1067, 1067,    8, 0xffffff,  4708,     1,    108,     0, 4095,  240,         0)
+
+        ctrl->flags                     = FLAG_EXPOSURE_SONY;
+        ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
+        ctrl->flags                    |= FLAG_IO_ENABLED;
+        ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL | FLAG_TRIGGER_PULSEWIDTH |
+                                          FLAG_TRIGGER_SELF | FLAG_TRIGGER_SINGLE;
+}
+
+// ------------------------------------------------------------------------------------------------
 //  Settings for IMX565 (Rev.03)
 //  12.4 MegaPixel Pregius S
 
@@ -1432,6 +1465,7 @@ int vc_mod_ctrl_init(struct vc_ctrl* ctrl, struct vc_desc* desc)
         case MOD_ID_IMX412: vc_init_ctrl_imx412(ctrl, desc); break;
         case MOD_ID_IMX415: vc_init_ctrl_imx415(ctrl, desc); break;
         case MOD_ID_IMX462: vc_init_ctrl_imx462(ctrl, desc); break;
+        case MOD_ID_IMX540: vc_init_ctrl_imx540(ctrl, desc); break;
         case MOD_ID_IMX565: vc_init_ctrl_imx565(ctrl, desc); break;
         case MOD_ID_IMX566: vc_init_ctrl_imx566(ctrl, desc); break;
         case MOD_ID_IMX567: vc_init_ctrl_imx567(ctrl, desc); break;
