@@ -1,2 +1,7 @@
-obj-m += vc_mipi_core.o
-obj-m := vc_mipi_modules.o
+KDIR ?= /lib/modules/$(shell uname -r)/build
+
+all:
+	$(MAKE) -C $(KDIR) M=$(CURDIR) modules
+
+clean:
+	$(MAKE) -C $(KDIR) M=$(CURDIR) clean
