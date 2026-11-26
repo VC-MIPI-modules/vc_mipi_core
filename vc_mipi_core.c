@@ -3008,6 +3008,8 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
                 case REG_TRIGGER_SINGLE:
                 case REG_TRIGGER_SELF:	
                         vc_calculate_trig_exposure(cam, exposure_us);
+                        // The module times the exposure, SHS has to be zero (tested with IMX183)
+                        ret |= vc_sen_write_shs(ctrl, state->shs);
                         ret |= vc_mod_write_exposure(client_mod, state->exposure_cnt);
                         // NOTE for FLAG_TRIGGER_SELF
                         // - Changing retrigger from bigger to smaller values leads to a hang up of the camera. 
