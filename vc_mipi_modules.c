@@ -648,6 +648,7 @@ static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->csr.sen.d_height          = (vc_csr2) { .l = 0x040f, .m = 0x040e };
         ctrl->csr.sen.scale             = (vc_csr2) { .l = 0x0405, .m = 0x0404 };
         ctrl->csr.sen.group_hold        = (vc_csr2) { .l = 0x0104, .m = 0x0000 };
+        ctrl->csr.sen.vt_syck_div       = (vc_csr2) { .l = 0x0303, .m = 0x0000 };
 
         FRAME(0, 0, 4032, 3040)
         // vmax min (= minimum exposure for FLAG_EXPOSURE_NORMAL): measured linear down to 1 line.

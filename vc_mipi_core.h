@@ -205,6 +205,8 @@ struct vc_sen_csr {
         struct vc_csr2 scale;
         // Grouped parameter hold: register changes apply together in the next frame
         struct vc_csr2 group_hold;
+        // System clock divider of the video timing domain (IMX412 VTSYCK_DIV)
+        struct vc_csr2 vt_syck_div;
         struct vc_csr4 flash_duration;
         struct vc_csr4 flash_offset;
 };
@@ -418,6 +420,7 @@ struct vc_state {
         __s32 vmax_overwrite;
         __s32 width_offset;
         __s32 height_offset;
+        __s32 vt_syck_div;              // 0: module default, else written to csr.sen.vt_syck_div
 #endif
 };
 
@@ -478,6 +481,8 @@ void vc_core_get_live_roi(struct vc_cam *cam, __u32 *scale, __u32 *left, __u32 *
 int vc_core_set_hmax_overwrite(struct vc_cam *cam, __s32 hmax_overwrite);       // Only used by NXP driver
 int vc_core_set_vmax_overwrite(struct vc_cam *cam, __s32 vmax_overwrite);       // Only used by NXP driver
 int vc_core_set_width_offset(struct vc_cam *cam, __s32 width_offset);           // Only used by NXP driver
+int vc_core_set_vt_syck_div(struct vc_cam *cam, __s32 divider);
+__u32 vc_core_get_clk_pixel(struct vc_cam *cam);
 int vc_core_set_height_offset(struct vc_cam *cam, __s32 height_offset);         // Only used by NXP driver
 #endif
 

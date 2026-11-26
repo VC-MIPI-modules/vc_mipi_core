@@ -759,6 +759,17 @@ vc_mode vc_core_get_mode(struct vc_cam *cam)
         
 }
 
+// Pixel clock of the line timing (HMAX units). A VT system clock divider other than the
+// module default 4 changes it (IMX412).
+__u32 vc_core_get_clk_pixel(struct vc_cam *cam)
+{
+#ifdef ENABLE_ADVANCED_CONTROL
+        if (cam->state.vt_syck_div > 0 && cam->ctrl.csr.sen.vt_syck_div.l)
+                return ((__u64)cam->ctrl.clk_pixel * 4) / cam->state.vt_syck_div;
+#endif
+        return cam->ctrl.clk_pixel;
+}
+
 __u32 vc_core_get_hmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
 {
 #ifdef ENABLE_ADVANCED_CONTROL
@@ -836,6 +847,23 @@ int vc_core_set_width_offset(struct vc_cam *cam, __s32 width_offset)
         vc_notice(dev, "%s(): Set width offset: %d\n", __FUNCTION__, width_offset);
 
         cam->state.width_offset = width_offset;
+        return 0;
+}
+
+// VT system clock divider (IMX412 VTSYCK_DIV, 0x0303): the line time scales with divider / 4
+// at the same HMAX. 0 keeps the module default (4).
+int vc_core_set_vt_syck_div(struct vc_cam *cam, __s32 divider)
+{
+        struct device *dev = vc_core_get_sen_device(cam);
+
+        if (divider < 0 || divider > 4 || (divider > 0 && !cam->ctrl.csr.sen.vt_syck_div.l)) {
+                vc_err(dev, "%s(): VT SYCK DIV %d not supported\n", __FUNCTION__, divider);
+                return -EINVAL;
+        }
+
+        vc_notice(dev, "%s(): Set VT SYCK DIV: %d\n", __FUNCTION__, divider);
+        cam->state.vt_syck_div = divider;
+        vc_core_update_controls(cam);
         return 0;
 }
 
@@ -1756,6 +1784,7 @@ static void vc_core_state_init(struct vc_cam *cam)
         state->vmax_overwrite = 0;
         state->width_offset = 0;
         state->height_offset = 0;
+        state->vt_syck_div = 0;
 #endif
 }
 
@@ -2563,6 +2592,11 @@ int vc_sen_set_roi(struct vc_cam *cam)
 
         vc_core_calculate_roi(cam, &w_left, &w_right, &w_width, &w_top, &w_bottom, &w_height, &o_width, &o_height);
 
+#ifdef ENABLE_ADVANCED_CONTROL
+        if (state->vt_syck_div > 0)
+                ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.vt_syck_div, state->vt_syck_div, __FUNCTION__);
+#endif
+
         // Scaler (only sensors with scaling modes): mode registers and scale
         if (ctrl->max_scaling_mode > 0) {
                 struct vc_scaling *regs = scaling ? scaling : &ctrl->scalings[0];
@@ -2938,7 +2972,7 @@ static __u32 vc_core_calculate_period_1H(struct vc_cam *cam, __u8 num_lanes, __u
 
         binning_index = (ctrl->flags & FLAG_USE_BINNING_INDEX) ? binning : 0;
 
-        for (index = 0; index <= MAX_VC_MODES; index++) {
+        for (index = 0; index < MAX_VC_MODES; index++) {
                 struct vc_mode *mode = &ctrl->mode[index];
                 if (mode->num_lanes == num_lanes && mode->format == format && (binning_index == ctrl->mode[index].binning)) {
                         /* Use the line length the sensor actually runs, as vc_sen_set_hmax()
@@ -2951,7 +2985,7 @@ static __u32 vc_core_calculate_period_1H(struct vc_cam *cam, __u8 num_lanes, __u
                         if (cam->state.hmax_overwrite > 0)
                                 hmax = cam->state.hmax_overwrite;
 #endif
-                        return ((__u64)hmax * 1000000000) / ctrl->clk_pixel;
+                        return ((__u64)hmax * 1000000000) / vc_core_get_clk_pixel(cam);
                 }
         }
 
@@ -2982,7 +3016,7 @@ __u32 vc_core_get_time_per_line_ns(struct vc_cam *cam)
         __u8 binning = state->binning_mode;
         __u64 hmax = cam->state.hmax_overwrite > 0 ? cam->state.hmax_overwrite :  vc_core_get_hmax(cam, num_lanes, format, binning);
 
-        return (hmax * 1000000000) / cam->ctrl.clk_pixel;
+        return (hmax * 1000000000) / vc_core_get_clk_pixel(cam);
 }
 
 int vc_core_set_binning_mode(struct vc_cam *cam, int mode)
@@ -3253,7 +3287,7 @@ static void vc_calculate_trig_exposure(struct vc_cam *cam, __u32 exposure_us)
         __u32 min_frametime_us = 0;
         __u32 frametime_us = 0; //Calculated frametime for self trigger by framerate
         __u32 vmax_optimized = vc_core_get_optimized_vmax(cam, num_lanes, format, binning, state->frame.height);
-        min_frametime_us = ((__u64)(vmax_optimized * hmax ) * 1000000 )/ ctrl->clk_pixel ;
+        min_frametime_us = ((__u64)(vmax_optimized * hmax ) * 1000000 )/ vc_core_get_clk_pixel(cam);
         frametime_us = min_frametime_us;
 
         if (state->trigger_mode & REG_TRIGGER_SELF) {
@@ -3416,7 +3450,7 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
                         __u8 format = vc_core_mbus_code_to_format(state->format_code);
                         __u8 binning = state->binning_mode;
                         __u32 hmax = vc_core_get_hmax(cam, num_lanes, format, binning);
-                        __u32 frametime_us = ((__u64)state->vmax * hmax * 1000000) / ctrl->clk_pixel;
+                        __u32 frametime_us = ((__u64)state->vmax * hmax * 1000000) / vc_core_get_clk_pixel(cam);
 
                         if (snapshot) {
                                 // The sensor is busy from the trigger until the end of its frame:
