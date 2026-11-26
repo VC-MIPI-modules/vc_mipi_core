@@ -839,8 +839,8 @@ int vc_core_set_vmax_overwrite(struct vc_cam *cam, __s32 vmax_overwrite)
         struct device *dev = vc_core_get_sen_device(cam);
         vc_notice(dev, "%s(): Set VMAX overwrite: %d\n", __FUNCTION__, vmax_overwrite);
 
+        // state.vmax is calculated from the overwrite with the next vc_sen_set_exposure()
         cam->state.vmax_overwrite = vmax_overwrite;
-        cam->state.vmax = vmax_overwrite;
         return 0;
 }
 
