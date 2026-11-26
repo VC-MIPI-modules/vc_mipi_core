@@ -187,7 +187,7 @@ static int i2c_write_reg(struct device *dev, struct i2c_client *client, const __
                         vc_err(dev, "%s():  try (%d) addr: 0x%04x <= value: 0x%02x, (write) i2c_transfer ret=%d \n", func, i+1, addr, value, ret);
                 }
         }
-        return 0;
+        return -EIO;
 }
 
 int i2c_write_regs(struct i2c_client *client, const struct vc_reg *regs, const char* func)
@@ -1136,16 +1136,14 @@ __u32 vc_core_get_num_lanes(struct vc_cam *cam)
         return state->num_lanes;
 }
 
+// Lane data rate of the module (ROM) mode that vc_mod_set_mode() selects for the
+// current format, lanes, trigger and binning. The index of ctrl->mode can not be
+// used for desc->modes: the sensor mode table has its own order and virtual modes.
 __s32 vc_core_get_lane_datarate(struct vc_cam *cam)
 {
         struct vc_desc *desc = &cam->desc;
-        struct vc_state *state = &cam->state;
-        struct vc_ctrl *ctrl = &cam->ctrl;
         struct device *dev = vc_core_get_sen_device(cam);
-        __u8 num_lanes = state->num_lanes;
-        __u8 format = vc_core_mbus_code_to_format(state->format_code);
-        __u8 binning = (ctrl->flags & FLAG_USE_BINNING_INDEX) ? state->binning_mode : 0;
-        int index = vc_core_get_mode_index(cam, num_lanes, format, binning);
+        int index = vc_mod_get_mode(cam);
 
         if (index >= 0 && index < desc->num_modes) {
                 __u32 data_rate = *(__u32*)desc->modes[index].data_rate;
@@ -3030,11 +3028,13 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
                         {
                                 vc_mode mode = vc_core_get_mode_by_param(cam, state->num_lanes,
                                         vc_core_mbus_code_to_format(state->format_code), state->binning_mode);
+                                __u32 vmax_overwrite_clamped;
+
                                 if (!vc_mode_is_valid(&mode)) {
                                         vc_err(dev, "%s(): No valid mode for VMAX overwrite\n", __FUNCTION__);
                                         return -EINVAL;
                                 }
-                                __u32 vmax_overwrite_clamped = vc_core_clamp_vmax_overwrite(cam, &mode);
+                                vmax_overwrite_clamped = vc_core_clamp_vmax_overwrite(cam, &mode);
 
                                 // Re-calculate SHS against the overwrite VMAX so exposure
                                 // stays the same in both directions. Sony: exposure is
