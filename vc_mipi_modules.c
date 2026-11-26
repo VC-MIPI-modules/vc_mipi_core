@@ -347,6 +347,8 @@ static void vc_init_ctrl_imx250(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE(  3,     4, FORMAT_RAW08,       0,     1,     1,   350, 0xffff,   350,   10,  0xfffff,   2094,     1,     38,     0,   255,   15,   1580040)
         MODE(  4,     4, FORMAT_RAW10,       0,     1,     1,   430, 0xffff,   430,   10,  0xfffff,   2094,     1,     38,     0,  1023,   60,   1580040)
         MODE(  5,     4, FORMAT_RAW12,       0,     1,     1,   510, 0xffff,   510,   10,  0xfffff,   2094,     1,     38,     0,  4095,  240,   1580040)
+
+        ctrl->flags                    |= FLAG_TRIGGER_OVERLAP;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -368,6 +370,10 @@ static void vc_init_ctrl_imx252(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE(  3,     4, FORMAT_RAW08,       0,     1,     1,   310, 0xffff,   310,   10,  0xfffff,   1582,     1,     38,     0,   255,   15,   1063754)
         MODE(  4,     4, FORMAT_RAW10,       0,     1,     1,   380, 0xffff,   380,   10,  0xfffff,   1582,     1,     38,     0,  1023,   60,   1063754)
         MODE(  5,     4, FORMAT_RAW12,       0,     1,     1,   444, 0xffff,   444,   10,  0xfffff,   1582,     1,     38,     0,  4095,  240,   1063754)
+
+        ctrl->flags                    |= FLAG_TRIGGER_OVERLAP;
+        // Restarting the stream in the same trigger mode needs no module reset (from the NVIDIA driver)
+        ctrl->flags                    |= FLAG_TRIGGER_NO_RESET;
 }
 
 // ------------------------------------------------------------------------------------------------

@@ -56,6 +56,7 @@
 #define MODE_TYPE_STREAM         0x01
 #define MODE_TYPE_TRIGGER        0x02
 #define MODE_TYPE_SLAVE          0x03
+#define MODE_TYPE_TRIGGER_OVERLAP 0x04
 
 
 // ------------------------------------------------------------------------------------------------
@@ -385,6 +386,7 @@ static void vc_core_print_modes(struct device *dev, struct vc_desc *desc)
                 case MODE_TYPE_STREAM:  strcpy(type, "STREAM "); break;
                 case MODE_TYPE_TRIGGER: strcpy(type, "EXT.TRG"); break;
                 case MODE_TYPE_SLAVE:   strcpy(type, "SLAVE  "); break;
+                case MODE_TYPE_TRIGGER_OVERLAP: strcpy(type, "OVL.TRG"); break;
                 default: sprintf(type, "0x%02x   ", mode->type); break;
                 }
                 vc_notice(dev, "| %2d |    %4u |       %u | %s   | %s |       %u |\n",
@@ -1794,6 +1796,19 @@ static int vc_mod_write_retrigger(struct i2c_client *client, __u32 value)
         return ret;
 }
 
+// True if the module (ROM) has at least one mode of the given type
+static bool vc_mod_has_mode_type(struct vc_cam *cam, __u8 type)
+{
+        struct vc_desc *desc = &cam->desc;
+        int index;
+
+        for (index = 0; index < desc->num_modes; index++) {
+                if (desc->modes[index].type == type)
+                        return true;
+        }
+        return false;
+}
+
 static __u8 vc_mod_find_mode(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 type, __u8 binning)
 {
         struct vc_desc *desc = &cam->desc;
@@ -1927,6 +1942,12 @@ static __u8 vc_mod_get_mode_type(struct vc_cam *cam, char **stype)
                 *stype = "STREAM";
                 return MODE_TYPE_STREAM;
         case REG_TRIGGER_EXTERNAL:
+                if (cam->state.trigger_overlap) {
+                        *stype = "OVL.TRG";
+                        return MODE_TYPE_TRIGGER_OVERLAP;
+                }
+                *stype = "EXT.TRG";
+                return MODE_TYPE_TRIGGER;
         case REG_TRIGGER_PULSEWIDTH:
         case REG_TRIGGER_SELF:
         case REG_TRIGGER_SINGLE:
@@ -1998,7 +2019,10 @@ int vc_mod_set_mode(struct vc_cam *cam, int *reset)
                 vc_notice(dev, "%s(): Module lost initialization\n", __FUNCTION__);
                 state->mode = 0xff;
         }
-        if ( (mode == state->mode) && (!(ctrl->flags & FLAG_RESET_ALWAYS) && (type == MODE_TYPE_STREAM) && !ctrl_mode_changed)) {
+        if ( (mode == state->mode) && !(ctrl->flags & FLAG_RESET_ALWAYS) && !ctrl_mode_changed &&
+             ((type == MODE_TYPE_STREAM) ||
+              ((ctrl->flags & FLAG_TRIGGER_NO_RESET) &&
+               (type == MODE_TYPE_TRIGGER || type == MODE_TYPE_TRIGGER_OVERLAP)))) {
                 vc_dbg(dev, "%s(): Module mode %u need not to be set!\n", __FUNCTION__, mode);
                 *reset = 0;
                 return 0;
@@ -2053,6 +2077,7 @@ int vc_mod_set_trigger_mode(struct vc_cam *cam, int mode)
         struct device *dev = vc_core_get_mod_device(cam);
         char *mode_desc;
 
+        state->trigger_overlap = false;
         if (mode == 0) {
                 mode_desc = "DISABLED";
                 state->trigger_mode = REG_TRIGGER_DISABLE;
@@ -2085,6 +2110,16 @@ int vc_mod_set_trigger_mode(struct vc_cam *cam, int mode)
                 mode_desc = "STREAM_LEVEL";
                 state->trigger_mode = REG_TRIGGER_STREAM_LEVEL;
 
+        } else if (mode == 8 && ctrl->flags & FLAG_TRIGGER_OVERLAP) {
+                // External trigger, the module mode allows overlapping exposures
+                if (!vc_mod_has_mode_type(cam, MODE_TYPE_TRIGGER_OVERLAP)) {
+                        vc_err(dev, "%s(): Trigger mode OVERLAP not supported by the module firmware!\n", __FUNCTION__);
+                        return -EINVAL;
+                }
+                mode_desc = "OVERLAP";
+                state->trigger_mode = REG_TRIGGER_EXTERNAL;
+                state->trigger_overlap = true;
+
         } else {
                 vc_err(dev, "%s(): Trigger mode %d not supported!\n", __FUNCTION__, mode);
                 return -EINVAL;
@@ -2101,7 +2136,7 @@ int vc_mod_get_trigger_mode(struct vc_cam *cam)
 {
         switch (cam->state.trigger_mode)  {
         case REG_TRIGGER_DISABLE:       return 0;
-        case REG_TRIGGER_EXTERNAL:      return 1;
+        case REG_TRIGGER_EXTERNAL:      return cam->state.trigger_overlap ? 8 : 1;
         case REG_TRIGGER_PULSEWIDTH:    return 2;
         case REG_TRIGGER_SELF:          return 3;
         case REG_TRIGGER_SINGLE:        return 4;

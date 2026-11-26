@@ -44,6 +44,11 @@ extern int debug;
 // Keep XTRIG enabled in free running mode too: the module distributes its own
 // sync pulses over XTRIG (e.g. OV9281L linked sensor array)
 #define FLAG_XTRIG_ALWAYS               (1 << 20)
+// Overlapping (sequential) external trigger: the next exposure may start during
+// the read out. Needs module modes of type MODE_TYPE_TRIGGER_OVERLAP (IMX250, IMX252).
+#define FLAG_TRIGGER_OVERLAP            (1 << 21)
+// Don't reset the module when a stream is restarted in the same trigger mode (IMX252)
+#define FLAG_TRIGGER_NO_RESET           (1 << 22)
 
 
 // Color Filter Array (Bayer pattern) of a color sensor, starting with the
@@ -400,6 +405,7 @@ struct vc_state {
         __u8 num_lanes;
         __u8 io_mode;
         __u8 trigger_mode;
+        bool trigger_overlap;           // External trigger with overlapping exposure (trigger mode 8)
         __u8 binning_mode;
         __u8 ctrl_mode;                 // Index of the active ctrl->mode[] (0xff: none)
         int power_on;
