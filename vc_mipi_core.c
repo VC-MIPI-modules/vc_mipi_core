@@ -2946,6 +2946,8 @@ int vc_sen_start_stream(struct vc_cam *cam)
         __u8 io_mode = state->io_mode;
 
         ret  = vc_mod_set_mode(cam, &reset);
+        if (!ret && reset && cam->reset_delay_ms)
+                msleep(cam->reset_delay_ms);
         ret |= vc_sen_set_roi(cam);
         ret |= vc_sen_write_extra_mode_regs(cam);
 

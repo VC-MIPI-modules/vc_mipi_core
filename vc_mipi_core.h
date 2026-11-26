@@ -281,11 +281,6 @@ typedef struct vc_mode {
         struct vc_reg extra_regs[MAX_EXTRA_MODE_REGS];
 } vc_mode;
 
-typedef struct dt_binning_mode {
-        __u32 binning_mode;
-        bool  mode_set;
-} dt_binning_mode;
-
 typedef struct vc_tout {
         bool tout1_sel;
         bool tout2_sel;
@@ -439,6 +434,10 @@ struct vc_cam {
         struct vc_ctrl ctrl;
         struct vc_state state;
         u32 force_color_mode; // Set to 1 to treat a mono sensor as color (from DT: force-color-mode)
+        // Platform setting of the camera driver: additional wait after a module reset in
+        // vc_sen_start_stream(), before the sensor registers are written (NVIDIA: 100-200 ms
+        // measured on Tegra). 0 = no additional wait (the module ready status is always polled).
+        __u32 reset_delay_ms;
 };
 
 // --- Helper functions to allow i2c communication for customization ----------
