@@ -388,9 +388,12 @@ struct vc_ctrl {
         // If non-zero, VMAX is fixed by the module and never written by the driver.
         // Only SHS follows the exposure (e.g. OV9281L linked sensor array).
         __u32 static_vmax;
-        // Lines of embedded data (CSI-2 data type 0x12) the sensor sends before the image
-        // (NVIDIA device tree: embedded_metadata_height). EMBEDDED_LINES_UNKNOWN if not measured.
-        __u8  embedded_lines;
+        // Rows of embedded data the sensor sends before (front) and after (end) the active image,
+        // in their own CSI-2 data types (usually 0x12, OG05B10: 0x10 front, 0x11 end), so they are
+        // not part of the image. NVIDIA device tree: embedded_metadata_height = front rows.
+        // EMBEDDED_LINES_UNKNOWN if not known.
+        __u8  embedded_lines_front;
+        __u8  embedded_lines_end;
 };
 
 struct vc_state {

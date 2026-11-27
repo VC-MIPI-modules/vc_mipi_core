@@ -123,8 +123,9 @@ static void vc_init_ctrl(struct vc_ctrl *ctrl, struct vc_desc* desc)
         // Default: no trigger snapshot mode -- see the field comment in vc_mipi_core.h.
         ctrl->trigger_wakeup_us         = 0;
         ctrl->trigger_wakeup_rows       = 0;
-        // Default: lines of embedded data not known -- see the field comment in vc_mipi_core.h.
-        ctrl->embedded_lines            = EMBEDDED_LINES_UNKNOWN;
+        // Default: rows of embedded data not known -- see the field comment in vc_mipi_core.h.
+        ctrl->embedded_lines_front      = EMBEDDED_LINES_UNKNOWN;
+        ctrl->embedded_lines_end        = EMBEDDED_LINES_UNKNOWN;
 
         ctrl->csr.sen.mode              = (vc_csr2) { .l = desc->csr_mode, .m = 0x0000 };
 
@@ -269,7 +270,7 @@ static void vc_init_ctrl_imx178(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE(  7,     4, FORMAT_RAW14,       0,     1,     1,  1156, 0xffff,  1156,    9,  0x1ffff,   2126,     1,     28,     0,  4095,  800,   2698560)
 
         ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
-        ctrl->embedded_lines            = 0;
+        ctrl->embedded_lines_front      = 0;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -298,7 +299,7 @@ static void vc_init_ctrl_imx183(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE(  5,     4, FORMAT_RAW12,       0,     1,     1,   862, 0xffff,   862,    5,  0x1ffff,   3728,     1,     80,     0,   255,   50,   3599997)
 
         ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
-        ctrl->embedded_lines            = 0;
+        ctrl->embedded_lines_front      = 0;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -330,7 +331,7 @@ static void vc_init_ctrl_imx226(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->cfa                       = VC_CFA_GBRG;
         ctrl->flags                    |= FLAG_RESET_ALWAYS;
         ctrl->flags                    |= FLAG_TRIGGER_STREAM_EDGE | FLAG_TRIGGER_STREAM_LEVEL;
-        ctrl->embedded_lines            = 0;
+        ctrl->embedded_lines_front      = 0;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -354,7 +355,7 @@ static void vc_init_ctrl_imx250(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE(  5,     4, FORMAT_RAW12,       0,     1,     1,   510, 0xffff,   510,   10,  0xfffff,   2094,     1,     38,     0,  4095,  240,   1580040)
 
         ctrl->flags                    |= FLAG_TRIGGER_OVERLAP;
-        ctrl->embedded_lines            = 0;
+        ctrl->embedded_lines_front      = 0;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -380,7 +381,7 @@ static void vc_init_ctrl_imx252(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->flags                    |= FLAG_TRIGGER_OVERLAP;
         // Restarting the stream in the same trigger mode needs no module reset (from the NVIDIA driver)
         ctrl->flags                    |= FLAG_TRIGGER_NO_RESET;
-        ctrl->embedded_lines            = 0;
+        ctrl->embedded_lines_front      = 0;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -399,7 +400,7 @@ static void vc_init_ctrl_imx264(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE(  0,     2, FORMAT_RAW08,       0,     1,     1,   996, 0xffff,   996,   10,  0xfffff,   2100,     0,      0,     0,   255,   15,   1580040)
         MODE(  1,     2, FORMAT_RAW10,       0,     1,     1,   996, 0xffff,   996,   10,  0xfffff,   2100,     0,      0,     0,  1023,   60,   1580040)
         MODE(  2,     2, FORMAT_RAW12,       0,     1,     1,   996, 0xffff,   996,   10,  0xfffff,   2100,     0,      0,     0,  4095,  240,   1580040)
-        ctrl->embedded_lines            = 0;
+        ctrl->embedded_lines_front      = 0;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -418,7 +419,7 @@ static void vc_init_ctrl_imx265(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE(  0,     2, FORMAT_RAW08,       0,     1,     1,   846, 0xffff,   846,   10,  0xfffff,   1587,     0,      0,     0,   255,   15,   1580040)
         MODE(  1,     2, FORMAT_RAW10,       0,     1,     1,   846, 0xffff,   846,   10,  0xfffff,   1587,     0,      0,     0,  1023,   60,   1580040)
         MODE(  2,     2, FORMAT_RAW12,       0,     1,     1,   846, 0xffff,   846,   10,  0xfffff,   1587,     0,      0,     0,  4095,  240,   1580040)
-        ctrl->embedded_lines            = 0;
+        ctrl->embedded_lines_front      = 0;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -461,7 +462,7 @@ static void vc_init_ctrl_imx273(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         ctrl->max_binning_modes_used = 1;
         ctrl->flags                    |= FLAG_USE_BINNING_INDEX;
-        ctrl->embedded_lines            = 0;
+        ctrl->embedded_lines_front      = 0;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -480,7 +481,7 @@ static void vc_init_ctrl_imx290(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE(  1,     2, FORMAT_RAW12,       0,     1,     1,  1100, 0xffff,  1100,    1,  0x3ffff,  0x465,     1,     19,     0,   511,  240,         0)
         MODE(  2,     4, FORMAT_RAW10,       0,     1,     1,   550, 0xffff,   550,    1,  0x3ffff,  0x465,     1,     19,     0,   511,   60,         0)
         MODE(  3,     4, FORMAT_RAW12,       0,     1,     1,   550, 0xffff,   550,    1,  0x3ffff,  0x465,     1,     19,     0,   511,  240,         0)
-        ctrl->embedded_lines            = 1;
+        ctrl->embedded_lines_front      = 1;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -518,7 +519,7 @@ static void vc_init_ctrl_imx296(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->max_binning_modes_used = 1;
         ctrl->flags                    |= FLAG_USE_BINNING_INDEX;
         ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
-        ctrl->embedded_lines            = 2;
+        ctrl->embedded_lines_front      = 2;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -535,7 +536,7 @@ static void vc_init_ctrl_imx297(struct vc_ctrl *ctrl, struct vc_desc* desc)
         //                                      scale  scale   hmax    hmax   hmax  vmax      vmax    vmax   vmax    vmax   vmax   blkl  blkl  retrigger
         //   idx  lanes        format  binning      x      y    min     max    def   min       max     def  scale  margin  floor    max   def        min
         MODE(  0,     1, FORMAT_RAW10,       0,     1,     1, 0x42e, 0xffff, 0x42e,    5,  0xfffff,  0x23e,     0,      0,     0,   511,   60,    883008)
-        ctrl->embedded_lines            = 2;
+        ctrl->embedded_lines_front      = 2;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -565,7 +566,7 @@ static void vc_init_ctrl_imx327(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE(  1,     2, FORMAT_RAW12,       0,     1,     1,  1100, 0xffff,  1100,    1,  0x3ffff,  0x465,     1,     19,     0,   511,  240,         0)
         MODE(  2,     4, FORMAT_RAW10,       0,     1,     1,  1100, 0xffff,  1100,    1,  0x3ffff,  0x465,     1,     19,     0,   511,   60,         0)
         MODE(  3,     4, FORMAT_RAW12,       0,     1,     1,  1100, 0xffff,  1100,    1,  0x3ffff,  0x465,     1,     19,     0,   511,  240,         0)
-        ctrl->embedded_lines            = 1;
+        ctrl->embedded_lines_front      = 1;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -597,7 +598,7 @@ static void vc_init_ctrl_imx335(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->flags                    |= FLAG_DOUBLE_HEIGHT;
         
         ctrl->flags                    |= FLAG_IO_ENABLED;
-        ctrl->embedded_lines            = 1;
+        ctrl->embedded_lines_front      = 1;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -619,7 +620,7 @@ static void vc_init_ctrl_imx392(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE(  3,     4, FORMAT_RAW08,       0,     1,     1,   294, 0xffff,   294,   10,  0xfffff,   1252,     1,     54,     0,   255,   15,   1063754)
         MODE(  4,     4, FORMAT_RAW10,       0,     1,     1,   355, 0xffff,   355,   10,  0xfffff,   1252,     1,     52,     0,  1023,   60,   1063754)
         MODE(  5,     4, FORMAT_RAW12,       0,     1,     1,   441, 0xffff,   441,   10,  0xfffff,   1252,     1,     50,     0,  4095,  240,   1063754)
-        ctrl->embedded_lines            = 0;
+        ctrl->embedded_lines_front      = 0;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -739,7 +740,7 @@ static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->flags                    |= FLAG_TRIGGER_SLAVE;
         ctrl->flags                    |= FLAG_USE_BINNING_INDEX;
         ctrl->vmax_exposure_margin      = 22;
-        ctrl->embedded_lines            = 2;
+        ctrl->embedded_lines_front      = 2;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -771,7 +772,7 @@ static void vc_init_ctrl_imx415(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->flags                    |= FLAG_DOUBLE_HEIGHT;
         ctrl->cfa                       = VC_CFA_GBRG;
         ctrl->flags                    |= FLAG_IO_ENABLED;
-        ctrl->embedded_lines            = 1;
+        ctrl->embedded_lines_front      = 1;
 }
 
 // -------------------------------------------------------------
@@ -789,7 +790,7 @@ static void vc_init_ctrl_imx462(struct vc_ctrl *ctrl, struct vc_desc *desc)
         MODE(  0,     2, FORMAT_RAW10,       0,     1,     1,  1100, 0xffff,  1100,    1,  0x3ffff,  0x465,     1,     19,     0,   511,   60,         0)
         MODE(  1,     4, FORMAT_RAW10,       0,     1,     1,   550, 0xffff,   550,    1,  0x3ffff,  0x465,     1,     19,     0,   511,   60,         0)
         MODE(  2,     2, FORMAT_RAW12,       0,     1,     1,  2200, 0xffff,  2200,    1,  0x3ffff,  0x465,     1,     19,     0,   511,   60,         0)
-        ctrl->embedded_lines            = 1;
+        ctrl->embedded_lines_front      = 1;
 }
 
 #define IMX56X_HV_MODE                  0x303c
@@ -913,7 +914,7 @@ static void vc_init_ctrl_imx565(struct vc_ctrl *ctrl, struct vc_desc *desc)
         ctrl->flags                    |= FLAG_IO_ENABLED;
         ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL | FLAG_TRIGGER_PULSEWIDTH | 
                                           FLAG_TRIGGER_SELF | FLAG_TRIGGER_SINGLE;
-        ctrl->embedded_lines            = 1;
+        ctrl->embedded_lines_front      = 1;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -988,7 +989,7 @@ static void vc_init_ctrl_imx566(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->flags                    |= FLAG_IO_ENABLED;
         ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL | FLAG_TRIGGER_PULSEWIDTH |
                                           FLAG_TRIGGER_SELF | FLAG_TRIGGER_SINGLE;
-        ctrl->embedded_lines            = 1;
+        ctrl->embedded_lines_front      = 1;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1064,7 +1065,7 @@ static void vc_init_ctrl_imx567(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL | FLAG_TRIGGER_PULSEWIDTH |
                                           FLAG_TRIGGER_SELF | FLAG_TRIGGER_SINGLE;
         ctrl->flags                    |= FLAG_USE_BINNING_INDEX;
-        ctrl->embedded_lines            = 1;
+        ctrl->embedded_lines_front      = 1;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1149,7 +1150,7 @@ static void vc_init_ctrl_imx568(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL | FLAG_TRIGGER_PULSEWIDTH |
                                           FLAG_TRIGGER_SELF | FLAG_TRIGGER_SINGLE;
         ctrl->flags                    |= FLAG_USE_BINNING_INDEX;
-        ctrl->embedded_lines            = 1;
+        ctrl->embedded_lines_front      = 1;
 }
 // ------------------------------------------------------------------------------------------------
 //  Settings for IMX585 (Rev.01)
@@ -1180,7 +1181,7 @@ static void vc_init_ctrl_imx585(struct vc_ctrl *ctrl, struct vc_desc* desc)
         MODE(  1,     2, FORMAT_RAW12,       0,     1,     1,  1320, 0xffff,  1320,    8,  0x1ffff, 0x08ca,     1,     70,  1024, 0x3ff, 0x32,         0)
         MODE(  2,     4, FORMAT_RAW10,       0,     1,     1,   550, 0xffff,   550,    8,  0x1ffff, 0x08ca,     1,     70,  1024, 0x3ff, 0x32,         0)
         MODE(  3,     4, FORMAT_RAW12,       0,     1,     1,   660, 0xffff,   660,    8,  0x1ffff, 0x08ca,     1,     70,  1024, 0x3ff, 0x32,         0)
-        ctrl->embedded_lines            = 2;
+        ctrl->embedded_lines_front      = 2;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1230,7 +1231,7 @@ static void vc_init_ctrl_imx900(struct vc_ctrl *ctrl, struct vc_desc* desc)
         EXTRA_MODE_REGS(  3, { IMX56X_HV_MODE, IMX56X_BINNING_MODE_DISABLE }, { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE })
         EXTRA_MODE_REGS(  4, { IMX56X_HV_MODE, IMX56X_BINNING_MODE_DISABLE }, { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE })
         EXTRA_MODE_REGS(  5, { IMX56X_HV_MODE, IMX56X_BINNING_MODE_DISABLE }, { IMX56X_EAV_SELECT, IMX56X_EAV_SELECT_VALUE })
-        ctrl->embedded_lines            = 1;
+        ctrl->embedded_lines_front      = 1;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1269,7 +1270,7 @@ static void vc_init_ctrl_ov7251(struct vc_ctrl *ctrl, struct vc_desc* desc)
         // Prior shared hardcoded value, unchanged -- see the field comment
         // in vc_mipi_core.h.
         ctrl->vmax_exposure_margin      = 25;
-        ctrl->embedded_lines            = 0;
+        ctrl->embedded_lines_front      = 0;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1325,7 +1326,7 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->vmax_exposure_margin      = 25;
         ctrl->trigger_wakeup_us         = 700;
         ctrl->trigger_wakeup_rows       = 11 + 10;
-        ctrl->embedded_lines            = 0;
+        ctrl->embedded_lines_front      = 0;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1425,6 +1426,10 @@ static void vc_init_ctrl_og05b10(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->trigger_wakeup_us         = 700;
         ctrl->trigger_wakeup_rows       = 0x0a + 18;
         ctrl->cfa                       = VC_CFA_BGGR;
+        // Datasheet figure 6-1: 2 front and 2 end embedded rows (output 2592 x (1944 + 4)), data
+        // types 0x10 (front) and 0x11 (end), set by the module (0x430A, 0x430B). Not measured.
+        ctrl->embedded_lines_front      = 2;
+        ctrl->embedded_lines_end        = 2;
 }
 
 // ------------------------------------------------------------------------------------------------
