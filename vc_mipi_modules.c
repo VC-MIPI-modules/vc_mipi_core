@@ -839,6 +839,9 @@ static void vc_init_ctrl_imx540(struct vc_ctrl *ctrl, struct vc_desc *desc)
         ctrl->flags                    |= FLAG_IO_ENABLED;
         ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL | FLAG_TRIGGER_PULSEWIDTH |
                                           FLAG_TRIGGER_SELF | FLAG_TRIGGER_SINGLE;
+        // Same Sony manual (IMX530/540/535/545/548/565/568 series) as IMX565/IMX568: one embedded
+        // data line (EBD) before the image. Not measured with the module.
+        ctrl->embedded_lines_front      = 1;
 }
 
 // ------------------------------------------------------------------------------------------------
