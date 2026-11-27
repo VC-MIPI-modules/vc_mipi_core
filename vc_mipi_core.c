@@ -11,10 +11,8 @@
 #include <linux/module.h>
 
 int vc_debug = 3;
-#ifndef VC_DEBUG_NO_PARAM
 module_param_named(debug, vc_debug, int, 0644);
 MODULE_PARM_DESC(debug, "Debug level (0-6)");
-#endif
 
 #define READ_DEFAULT_REG_VALUES
 #define OVERWRITE_HMAX

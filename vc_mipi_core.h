@@ -12,9 +12,7 @@
 // The core is linked into the camera driver module on all platforms (Raspberry Pi, NXP,
 // NVIDIA), so it exports no symbols.
 
-// Debug level, module parameter "debug" (named vc_debug to avoid clashes with other modules).
-// With VC_DEBUG_NO_PARAM the core defines no module parameter (e.g. MediaTek: the core is linked
-// into imgsensor.ko), the camera driver sets vc_debug.
+// Debug level, module parameter "debug" (named vc_debug to avoid clashes with other modules)
 extern int vc_debug;
 
 #define level(level) if (vc_debug >= level)
