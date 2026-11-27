@@ -11,8 +11,10 @@
 #include <linux/module.h>
 
 int vc_debug = 3;
+#ifndef VC_DEBUG_NO_PARAM
 module_param_named(debug, vc_debug, int, 0644);
 MODULE_PARM_DESC(debug, "Debug level (0-6)");
+#endif
 
 #define READ_DEFAULT_REG_VALUES
 #define OVERWRITE_HMAX
@@ -1513,46 +1515,53 @@ __u32 vc_core_calculate_max_frame_rate(struct vc_cam *cam, __u8 num_lanes, __u8 
 // ------------------------------------------------------------------------------------------------
 //  Helper Functions for the VC MIPI Controller Module
 
-struct i2c_client *vc_mod_get_client(struct device *dev, struct i2c_adapter *adapter, __u8 i2c_addr)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,3,0)
+static int vc_match_dev_name(struct device *dev, void *name)
 {
-        struct i2c_client *client;
+        return sysfs_streq(dev_name(dev), name);
+}
+#endif
+
+/* Client at i2c_addr on the adapter, registered without probing the address.
+ * A client already registered there (rebind after the driver was unbound) is
+ * re-used: registering it again fails with -EBUSY. */
+static struct i2c_client *vc_get_i2c_client(struct i2c_adapter *adapter, __u8 i2c_addr)
+{
         struct i2c_board_info info = {
                 I2C_BOARD_INFO("i2c", i2c_addr),
         };
-        unsigned short addr_list[2] = { i2c_addr, I2C_CLIENT_END };
-        int count;
+        struct i2c_client *client;
+        struct device *existing;
+        char name[16];
 
-        for (count = 0; count < 200; count++) {
-                msleep(1);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5,5,0)
-                client = i2c_new_probed_device(adapter, &info, addr_list, NULL);
-                if (client != NULL) {
-                        vc_dbg(dev, "%s(): %u attempts took %u ms to probe i2c device 0x%02x\n", __func__, count, count, i2c_addr);
-                        return client;
-                }
+        snprintf(name, sizeof(name), "%d-%04x", i2c_adapter_id(adapter), i2c_addr);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,3,0)
+        existing = bus_find_device(&i2c_bus_type, NULL, name, vc_match_dev_name);
 #else
-                client = i2c_new_scanned_device(adapter, &info, addr_list, NULL);
-                if (!IS_ERR(client)) {
-                        vc_dbg(dev, "%s(): %u attempts took %u ms to scan i2c device 0x%02x\n", __func__, count, count, i2c_addr);
-                        return client;
-                } 
+        existing = bus_find_device_by_name(&i2c_bus_type, NULL, name);
 #endif
+        if (existing) {
+                client = i2c_verify_client(existing);
+                put_device(existing);
+                if (client)
+                        return client;
         }
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,5,0)
+        client = i2c_new_device(adapter, &info);
+        return IS_ERR_OR_NULL(client) ? NULL : client;
+#else
+        client = i2c_new_client_device(adapter, &info);
+        return IS_ERR(client) ? NULL : client;
+#endif
+}
 
-        // How to change the drivers name.
-        // i2c 6-0010
-        //  ^     ^
-        //  |     +--- The device name is set by
-        //  |          i2c_new_probed_device() -> i2c_new_device() -> i2c_dev_set_name()
-        //  |          dev_set_name() and dev_name()
-        //  +---------
-        // dev = &client->dev;
-        // vc_notice(dev, "%s(): dev_name:%s\n", __FUNCTION__, dev_name(dev));
-        // if (dev->driver == 0) {
-        // 	vc_err(dev, "%s(): dev->driver == 0\n", __FUNCTION__);
-        // }
-
-        return NULL;
+/* The module controller sits on the same i2c bus as its sensor, so every sensor gets the client
+ * of its own adapter (two cameras: e.g. 5-0010 and 6-0010). The address is not probed: the
+ * module controller may only answer once the module is powered (vc_mod_set_power(), later in
+ * the probe), a probing scan would not find it. An absent module fails the descriptor read. */
+struct i2c_client *vc_mod_get_client(struct device *dev, struct i2c_adapter *adapter, __u8 i2c_addr)
+{
+        return vc_get_i2c_client(adapter, i2c_addr);
 }
 
 int vc_mod_set_power(struct vc_cam *cam, int on)
@@ -1675,11 +1684,19 @@ static int vc_mod_check_sensor_connected(struct i2c_client *client_mod)
         return ret;
 }
 
+/* Two ways to be bound:
+ *  - The device tree node is the sensor (reg = sensor address, 0x1a or 0x60). The module client
+ *    at mod_i2c_addr is created here and the sensor address of the module must match the node.
+ *  - The device tree node is the module controller (reg = mod_i2c_addr, 0x10). The module
+ *    reports the sensor address (MOD_REG_SEN_ADDR), the sensor client is created there, so one
+ *    device tree works for Sony and OmniVision modules. */
 static int vc_mod_setup(struct vc_ctrl *ctrl, int mod_i2c_addr, struct vc_desc *desc)
 {
-        struct i2c_client *client_sen = ctrl->client_sen;
-        struct i2c_adapter *adapter = client_sen->adapter;
-        struct device *dev_sen = &client_sen->dev;
+        struct i2c_client *client_bound = ctrl->client_sen;
+        struct i2c_adapter *adapter = client_bound->adapter;
+        struct device *dev_sen = &client_bound->dev;
+        bool autodetect = (client_bound->addr == mod_i2c_addr);
+        struct i2c_client *client_sen = client_bound;
         struct i2c_client *client_mod;
         struct device *dev_mod;
         int addr, reg;
@@ -1691,50 +1708,76 @@ static int vc_mod_setup(struct vc_ctrl *ctrl, int mod_i2c_addr, struct vc_desc *
                 return 0;
         }
 
-        client_mod = vc_mod_get_client(dev_sen, adapter, mod_i2c_addr);
-        if (client_mod == 0) {
-                vc_err(dev_sen, "%s(): Unable to get module I2C client for address 0x%02x\n", __FUNCTION__, mod_i2c_addr);
-                return -EIO;
+        if (autodetect) {
+                client_mod = client_bound;
+        } else {
+                client_mod = vc_mod_get_client(dev_sen, adapter, mod_i2c_addr);
+                if (client_mod == NULL) {
+                        vc_err(dev_sen, "%s(): Unable to get module I2C client for address 0x%02x\n", __FUNCTION__, mod_i2c_addr);
+                        return -EIO;
+                }
         }
 
         dev_mod = &client_mod->dev;
         for (addr = 0; addr < sizeof(*desc); addr++) {
                 reg = i2c_read_reg(dev_mod, client_mod, addr + 0x1000, __FUNCTION__);
-                if (reg < 0) {
-                        i2c_unregister_device(client_mod);
-                        return -EIO;
-                }
+                if (reg < 0)
+                        goto err_io;
                 *((char *)(desc) + addr) = (char)reg;
         }
 
-        reg = i2c_read_reg(dev_mod, client_mod, MOD_REG_SEN_ADDR, __FUNCTION__);
-        if (reg < 0) {
-                i2c_unregister_device(client_mod);
-                return -EIO;
+        // Check num_modes before anything walks desc->modes[]: another chip at the module address
+        // that acknowledges reads gives a garbage num_modes (out-of-bounds read, dmesg flood).
+        // TODO: Check if connected module is really a VC MIPI module
+        if (desc->num_modes == 0 || desc->num_modes > MAX_VC_DESC_MODES) {
+                vc_err(dev_mod, "%s(): Invalid module descriptor (num_modes = %u, expected 1..%d), wrong device at "
+                        "I2C address 0x%02x?\n", __FUNCTION__, desc->num_modes, MAX_VC_DESC_MODES, mod_i2c_addr);
+                goto err_io;
         }
-        if ((__u8)reg != client_sen->addr) {
+
+        reg = i2c_read_reg(dev_mod, client_mod, MOD_REG_SEN_ADDR, __FUNCTION__);
+        if (reg < 0)
+                goto err_io;
+
+        if (autodetect) {
+                if (reg < 0x08 || reg > 0x77 || reg == mod_i2c_addr) {
+                        vc_err(dev_sen, "%s(): Module reports an invalid sensor I2C address 0x%02x\n", __FUNCTION__, reg);
+                        return -ENODEV;
+                }
+                // Not probed: the sensor is not powered yet
+                client_sen = vc_get_i2c_client(adapter, (__u8)reg);
+                if (client_sen == NULL) {
+                        vc_err(dev_sen, "%s(): Unable to get sensor I2C client for address 0x%02x\n", __FUNCTION__, reg);
+                        return -EIO;
+                }
+                vc_notice(dev_sen, "%s(): Detected sensor I2C address 0x%02x (module at 0x%02x)\n",
+                        __FUNCTION__, reg, mod_i2c_addr);
+        } else if ((__u8)reg != client_sen->addr) {
                 vc_err(dev_sen, "%s(): Sensor I2C address mismatch: module is wired for sensor address 0x%02x "
                         "but the loaded device tree overlay bound this device to 0x%02x. Wrong sensor "
-                        "manufacturer overlay selected (0x60 = Omnivision, 0x1a = Sony)?\n",
-                        __FUNCTION__, reg, client_sen->addr);
+                        "manufacturer overlay selected (0x60 = Omnivision, 0x1a = Sony)? With reg = <0x%02x> "
+                        "(the module) the sensor address is detected automatically.\n",
+                        __FUNCTION__, reg, client_sen->addr, mod_i2c_addr);
                 i2c_unregister_device(client_mod);
                 return -ENODEV;
         }
 
-        // TODO: Check if connected module is really a VC MIPI module
         vc_core_print_desc(dev_mod, desc);
         vc_core_print_csr(dev_mod, desc);
         vc_core_print_modes(dev_mod, desc);
 
         ctrl->client_mod = client_mod;
+        ctrl->client_sen = client_sen;
+        ctrl->client_mod_owned = !autodetect;
+        ctrl->client_sen_owned = autodetect;
         ctrl->mod_i2c_addr = mod_i2c_addr;
 
-        if (desc->num_modes == 0) {
-                vc_err(dev_mod, "%s(): Could not find any module modes! Operation not possible!\n", __FUNCTION__);
-                return -EIO;
-        }
-
         return 0;
+
+err_io:
+        if (!autodetect)
+                i2c_unregister_device(client_mod);
+        return -EIO;
 }
 
 int vc_core_update_controls(struct vc_cam *cam)
@@ -1827,6 +1870,7 @@ int vc_core_init(struct vc_cam *cam, struct i2c_client *client)
         struct vc_ctrl *ctrl = &cam->ctrl;
         int ret;
 
+        cam->force_mode = -1;
         ctrl->client_sen = client;
         ret = vc_mod_setup(ctrl, 0x10, desc);
         if (ret) {
@@ -1858,7 +1902,11 @@ int vc_core_init(struct vc_cam *cam, struct i2c_client *client)
 int vc_core_release(struct vc_cam *cam)
 {
         struct vc_ctrl *ctrl = &cam->ctrl;
-        i2c_unregister_device(ctrl->client_mod);
+        // Only the clients created by the core, not the one of the device tree node
+        if (ctrl->client_mod_owned)
+                i2c_unregister_device(ctrl->client_mod);
+        if (ctrl->client_sen_owned)
+                i2c_unregister_device(ctrl->client_sen);
         return 0;
 }
 
@@ -2098,6 +2146,20 @@ int vc_mod_set_mode(struct vc_cam *cam, int *reset)
         int ret = 0;
         int ctrl_mode = vc_core_get_current_mode_index(cam);
         bool ctrl_mode_changed = false;
+
+        // force_mode: set this module mode on every stream start (debugging, see struct vc_cam)
+        if (cam->force_mode >= 0 && cam->force_mode < cam->desc.num_modes) {
+                vc_notice(dev, "%s(): Forced module mode %d\n", __FUNCTION__, cam->force_mode);
+                ret = vc_mod_reset_module(cam, (__u8)cam->force_mode);
+                if (ret) {
+                        vc_err(dev, "%s(): Unable to set forced module mode %d (error: %d)\n", __FUNCTION__,
+                                cam->force_mode, ret);
+                        return ret;
+                }
+                state->mode = cam->force_mode;
+                *reset = 1;
+                return 0;
+        }
 
         type = vc_mod_get_mode_type(cam, &stype);
 
@@ -2564,6 +2626,10 @@ int vc_sen_set_hmax(struct vc_cam *cam)
         struct vc_ctrl *ctrl = &cam->ctrl;
         struct vc_state *state = &cam->state;
 
+        if (cam->keep_hmax) {
+                vc_dbg(vc_core_get_sen_device(cam), "%s(): keep_hmax, the sensor keeps its HMAX\n", __FUNCTION__);
+                return 0;
+        }
 #ifdef OVERWRITE_HMAX
         if (cam->state.hmax_overwrite < 0) {
                 return 0;
@@ -2581,10 +2647,14 @@ int vc_sen_set_hmax(struct vc_cam *cam)
                         return 0;
                 }
 
+                /* No explicit overwrite (HBLANK control): keep the line length the module
+                 * initialised the sensor with. Writing the default of the mode table at
+                 * every stream start (since e7bde2a) changed the line period of sensors
+                 * configured by the module: IMX327 sent truncated lines (MediaTek camsv
+                 * frame size 0x4d8 instead of 0x780), IMX412 stopped sending (HMAX is the
+                 * line length in pixel clocks there). */
                 if (cam->state.hmax_overwrite == 0) {
-                        if (mode.hmax.min == mode.hmax.max) {
-                                return 0;
-                        }
+                        return 0;
                 } else if ((__u32)cam->state.hmax_overwrite < mode.hmax.min ||
                            (__u32)cam->state.hmax_overwrite > mode.hmax.max) {
                         /* Never write a line outside the current mode's range: a too short
@@ -2911,6 +2981,10 @@ int vc_sen_start_stream(struct vc_cam *cam)
         ret  = vc_mod_set_mode(cam, &reset);
         if (!ret && reset && cam->reset_delay_ms)
                 msleep(cam->reset_delay_ms);
+        if (!ret && cam->start_delay_ms) {
+                vc_dbg(dev, "%s(): Start delay: %u ms\n", __FUNCTION__, cam->start_delay_ms);
+                msleep(cam->start_delay_ms);
+        }
         ret |= vc_sen_set_roi(cam);
         ret |= vc_sen_write_extra_mode_regs(cam);
 

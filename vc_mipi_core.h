@@ -12,7 +12,9 @@
 // The core is linked into the camera driver module on all platforms (Raspberry Pi, NXP,
 // NVIDIA), so it exports no symbols.
 
-// Debug level, module parameter "debug" (named vc_debug to avoid clashes with other modules)
+// Debug level, module parameter "debug" (named vc_debug to avoid clashes with other modules).
+// With VC_DEBUG_NO_PARAM the core defines no module parameter (e.g. MediaTek: the core is linked
+// into imgsensor.ko), the camera driver sets vc_debug.
 extern int vc_debug;
 
 #define level(level) if (vc_debug >= level)
@@ -337,6 +339,8 @@ struct vc_ctrl {
         int mod_i2c_addr;
         struct i2c_client *client_sen;
         struct i2c_client *client_mod;
+        bool client_mod_owned;          // client_mod / client_sen created by the core (not the device tree node)
+        bool client_sen_owned;
         // Controls
         struct vc_mode mode[MAX_VC_MODES];
         struct vc_control exposure;
@@ -436,10 +440,19 @@ struct vc_cam {
         struct vc_ctrl ctrl;
         struct vc_state state;
         u32 force_color_mode; // Set to 1 to treat a mono sensor as color (from DT: force-color-mode)
-        // Platform setting of the camera driver: additional wait after a module reset in
-        // vc_sen_start_stream(), before the sensor registers are written (NVIDIA: 100-200 ms
-        // measured on Tegra). 0 = no additional wait (the module ready status is always polled).
+        // Platform settings of the camera driver (set after vc_core_init()):
+        // reset_delay_ms: additional wait after a module reset in vc_sen_start_stream(), before
+        //   the sensor registers are written (NVIDIA: 100-200 ms measured on Tegra). 0 = no
+        //   additional wait (the module ready status is always polled).
+        // start_delay_ms: wait after the module mode was set on every stream start, with or
+        //   without reset (MediaTek imgsensor: 200 ms). 0 = no wait.
+        // force_mode: module mode set on every stream start instead of the one matching lanes,
+        //   format and trigger mode (debugging). -1 = off (vc_core_init()).
+        // keep_hmax: never write HMAX, also not for an HBLANK overwrite (debugging).
         __u32 reset_delay_ms;
+        __u32 start_delay_ms;
+        int   force_mode;
+        bool  keep_hmax;
 };
 
 // --- Helper functions to allow i2c communication for customization ----------
