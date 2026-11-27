@@ -23,6 +23,8 @@ extern int vc_debug;
 #define vc_warn(dev, fmt, ...) level(2) dev_warn(dev, fmt, ##__VA_ARGS__)
 #define vc_err(dev, fmt, ...) level(1) dev_err(dev, fmt, ##__VA_ARGS__)
 
+#define EMBEDDED_LINES_UNKNOWN          0xff
+
 #define FLAG_RESET_ALWAYS               (1 <<  0)
 #define FLAG_EXPOSURE_SONY              (1 <<  1)
 #define FLAG_EXPOSURE_NORMAL            (1 <<  2)
@@ -386,6 +388,9 @@ struct vc_ctrl {
         // If non-zero, VMAX is fixed by the module and never written by the driver.
         // Only SHS follows the exposure (e.g. OV9281L linked sensor array).
         __u32 static_vmax;
+        // Lines of embedded data (CSI-2 data type 0x12) the sensor sends before the image
+        // (NVIDIA device tree: embedded_metadata_height). EMBEDDED_LINES_UNKNOWN if not measured.
+        __u8  embedded_lines;
 };
 
 struct vc_state {
