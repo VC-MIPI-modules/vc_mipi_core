@@ -1387,6 +1387,9 @@ static void vc_init_ctrl_ov9281l(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->flags                    |= FLAG_RESET_ALWAYS;
         ctrl->flags                    |= FLAG_XTRIG_ALWAYS;
         ctrl->vmax_exposure_margin      = 25;
+        // No embedded data
+        ctrl->embedded_lines_front      = 0;
+        ctrl->embedded_lines_end        = 0;
 }
 
 static void vc_init_ctrl_og05b10(struct vc_ctrl *ctrl, struct vc_desc* desc)
@@ -1476,7 +1479,11 @@ static void vc_init_ctrl_ar2020(struct vc_ctrl *ctrl, struct vc_desc* desc)
        // ctrl->flags                    |= FLAG_TRIGGER_EXTERNAL; 
         ctrl->flags                    |= FLAG_INCREASE_FRAME_RATE;
         ctrl->cfa                       = VC_CFA_GRBG;
-
+        // No embedded data: EMBEDDED_DATA_CTRL (R0x3EC6) bit 0 EMBEDDED_DATA_EN keeps its default
+        // (disabled), with it 2 rows of embedded data (+ 2 rows of statistics) would be sent
+        // (AND90203/D table 20).
+        ctrl->embedded_lines_front      = 0;
+        ctrl->embedded_lines_end        = 0;
 }
 
 int vc_mod_ctrl_init(struct vc_ctrl* ctrl, struct vc_desc* desc)
